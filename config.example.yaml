@@ -1,0 +1,93 @@
+# Copy to config.yaml (or edit config.yaml directly) after forking.
+# This file documents every user-facing setting.
+
+# ---------------------------------------------------------------------------
+# repositories — GitHub sources whose README job tables will be monitored
+# ---------------------------------------------------------------------------
+repositories:
+  # Unique name used in logs and data/repository_state.json
+  - name: simplify-summer-2026
+    # Required format: owner/repository
+    repo: SimplifyJobs/Summer2026-Internships
+    # Branch that contains the README (often main or dev)
+    branch: dev
+    # Path inside the repo
+    readme_path: README.md
+    # Set false to temporarily skip without deleting the entry
+    enabled: true
+
+  - name: summer-2027
+    repo: sndsh404/summer-2027-internships
+    branch: main
+    readme_path: README.md
+    enabled: true
+
+  # Add more sources the same way:
+  # - name: my-other-list
+  #   repo: owner/repo-name
+  #   branch: main
+  #   readme_path: README.md
+  #   enabled: true
+
+# ---------------------------------------------------------------------------
+# filters — case-insensitive; applied to company + role + location text
+# ---------------------------------------------------------------------------
+filters:
+  # If empty: accept all roles. If non-empty: at least one keyword must match.
+  include_keywords:
+    - software engineer
+    - software engineering
+    - machine learning
+    - artificial intelligence
+    - computer vision
+    - data scientist
+    - data engineering
+
+  # Always wins over include matches
+  exclude_keywords:
+    - phd
+    - postdoctoral
+
+  # If non-empty: job location must contain at least one of these
+  locations: []
+  # Example:
+  # locations:
+  #   - remote
+  #   - san francisco
+  #   - seattle
+
+  # Only exclude when the README explicitly marks the restriction
+  exclude_no_sponsorship: false
+  exclude_us_citizenship_required: false
+
+# ---------------------------------------------------------------------------
+# ai — GitHub Models fallback when rule parsers are not confident enough
+# ---------------------------------------------------------------------------
+ai:
+  enabled: true
+  provider: github_models
+  model: openai/gpt-4.1-mini
+  # Use AI when rule-parser confidence is below this (0.0–1.0)
+  minimum_rule_parser_confidence: 0.8
+  # Cap README text sent to the model
+  max_input_characters: 50000
+
+# ---------------------------------------------------------------------------
+# notifications — Discord batching limits
+# ---------------------------------------------------------------------------
+notifications:
+  # Jobs per Discord webhook message (embeds)
+  max_jobs_per_message: 5
+  # Max jobs notified in one monitor run; overflow goes to data/pending_jobs.json
+  max_jobs_per_run: 30
+
+# ---------------------------------------------------------------------------
+# Secrets / env (NOT stored in this file)
+# ---------------------------------------------------------------------------
+# DISCORD_WEBHOOK_URL  — required for Discord posts (GitHub Actions secret or export)
+# GITHUB_TOKEN         — optional locally; provided automatically in Actions
+#
+# CLI one-offs (not config):
+#   --test-discord       send one test message
+#   --dry-run            preview without Discord/state writes
+#   --notify-existing    notify all currently matching jobs (even after baseline)

@@ -278,6 +278,36 @@ class PipelineReliabilityTests(unittest.TestCase):
             self.assertGreater(summary.jobs_notified, 0)
             discord.send_jobs.assert_called()
 
+    def test_notify_existing_after_silent_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state = StateStore(tmp)
+            state.load()
+            github = MagicMock()
+            github.fetch_readme.return_value = ReadmeDocument(
+                content=read_fixture("markdown_summer_2027.md"),
+                sha="sha-first",
+                path="README.md",
+            )
+            discord = MagicMock()
+            discord.send_jobs.side_effect = lambda jobs: jobs
+            config = sample_config(
+                [sample_repo("summer-2027", "sndsh404/summer-2027-internships")],
+                ai_enabled=False,
+            )
+            # Silent baseline first.
+            MonitorPipeline(config, state, github, discord).run()
+            discord.send_jobs.assert_not_called()
+            self.assertGreater(len(state.seen_jobs), 0)
+
+            # Same SHA + --notify-existing should still (re)notify matches.
+            discord.reset_mock()
+            discord.send_jobs.side_effect = lambda jobs: jobs
+            summary = MonitorPipeline(
+                config, state, github, discord, notify_existing=True
+            ).run()
+            self.assertGreater(summary.jobs_notified, 0)
+            discord.send_jobs.assert_called()
+
     def test_unchanged_sha_skips_parse_but_pending_still_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             state = StateStore(tmp)

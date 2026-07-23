@@ -252,13 +252,21 @@ class MonitorPipeline:
 
             new_jobs: list[Job] = []
             for job in accepted:
-                if self.state.is_seen(job.job_id):
+                # --notify-existing re-sends current matches even if already baselined/seen.
+                if self.state.is_seen(job.job_id) and not self.notify_existing:
                     stats["already_seen"] += 1
                     continue
                 new_jobs.append(job)
 
             pending_ids = {job.job_id for job in self.state.pending_jobs}
             new_jobs = [job for job in new_jobs if job.job_id not in pending_ids]
+
+            if self.notify_existing and not is_first_run:
+                logger.info(
+                    "[%s] --notify-existing: %d matching job(s) eligible to (re)notify",
+                    repository.name,
+                    len(new_jobs),
+                )
 
             to_notify = new_jobs[:remaining_notify_slots]
             overflow = new_jobs[remaining_notify_slots:]

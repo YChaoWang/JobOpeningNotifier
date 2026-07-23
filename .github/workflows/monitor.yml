@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
       notify_existing:
-        description: "Notify existing matching jobs (skip silent first-run baseline)"
+        description: "Notify all currently matching jobs (even if already baselined)"
         required: false
         default: false
         type: boolean

@@ -1,10 +1,17 @@
 # JobOpeningNotifier
 
-Open-source code that watches public internship/job README lists on GitHub and posts matching roles to **your** Discord.
+**Goal:** let anyone add the job/internship GitHub lists they care about, combine many sources automatically, and get Discord alerts — **without changing this upstream project or the source listing repos**.
 
-You run the code (fork or clone + GitHub Actions). You provide your own Discord webhook. Your job history stays in your repo’s `data/` folder.
+How that works:
 
-**Default sources** (edit in `config.yaml`):
+1. **Fork** this repo (your copy is independent).  
+2. In **your** fork, edit `config.yaml` to add/remove sources.  
+3. Add **your** Discord webhook as a secret.  
+4. GitHub Actions in **your** fork watches those READMEs and notifies **your** Discord.  
+
+Your `config.yaml`, `data/` state, and webhook never write back to the original JobOpeningNotifier repo, and this bot only *reads* public listing READMEs (it does not modify SimplifyJobs, sndsh404, etc.).
+
+**Starter sources** (change freely in your fork’s `config.yaml`):
 
 - [SimplifyJobs/Summer2026-Internships](https://github.com/SimplifyJobs/Summer2026-Internships) (HTML tables)
 - [sndsh404/summer-2027-internships](https://github.com/sndsh404/summer-2027-internships) (Markdown tables)
@@ -23,12 +30,21 @@ config.yaml
 
 ## Quick start
 
-1. Fork this repo  
+1. **Fork** this repository (do not push personal config/state to upstream)  
 2. Create a Discord webhook (channel → Integrations → Webhooks)  
-3. Add secret `DISCORD_WEBHOOK_URL` in your fork  
-4. Enable Actions → run **Internship Monitor** once  
+3. In *your fork*: Settings → Secrets → Actions → add `DISCORD_WEBHOOK_URL`  
+4. Edit *your* `config.yaml` — add any public job-list repos you want  
+5. Enable Actions → run **Internship Monitor** once  
 
-**First run is silent by default:** existing jobs are stored as seen, Discord is not flooded. Later README changes notify only new matches. Use `--notify-existing` (or the workflow input) to send the current matching set.
+**First run is silent by default:** existing jobs are stored as seen, Discord is not flooded. Later README changes notify only new matches.
+
+To send the **current matching set** (first run or later, even after a silent baseline):
+
+```bash
+uv run python check_jobs.py --notify-existing
+```
+
+Or set the Actions input `notify_existing` to `true`. Batch limits still apply; overflow goes to `pending_jobs.json`.
 
 ## Behavior notes
 
@@ -55,7 +71,28 @@ uv run python check_jobs.py --notify-existing
 uv run python check_jobs.py
 ```
 
-## Config
+## Configuration
+
+All normal customization is in **`config.yaml`**.  
+Start from the commented template: **`config.example.yaml`**.
+
+| What you want | Where |
+| --- | --- |
+| Add/remove internship lists | `repositories` in `config.yaml` |
+| Role keywords / locations / sponsorship filters | `filters` |
+| AI fallback on/off and model | `ai` |
+| How many Discord posts per run | `notifications` |
+| Discord webhook | GitHub secret / env `DISCORD_WEBHOOK_URL` (never in YAML) |
+| Preview without posting | CLI: `uv run python check_jobs.py --dry-run` |
+| Send / resend current matches | CLI/Actions: `--notify-existing` (works even after silent baseline) |
+
+```bash
+# After forking, optionally reset from the example:
+cp config.example.yaml config.yaml
+# then edit config.yaml
+```
+
+Example repository entry:
 
 ```yaml
 repositories:
@@ -65,9 +102,6 @@ repositories:
     readme_path: README.md
     enabled: true
 ```
-
-Also configure `filters`, `ai`, and `notifications` in `config.yaml`.
-
 ## GitHub Actions
 
 - Schedule: every 30 minutes + `workflow_dispatch`

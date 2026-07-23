@@ -42,7 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--notify-existing",
         action="store_true",
         help=(
-            "Notify existing matching jobs on first-run / re-init instead of silent baseline"
+            "Notify all currently matching jobs (ignores seen baseline). "
+            "Use on first run or later to dump the current matching set; "
+            "still respects max_jobs_per_run / pending queue."
         ),
     )
     parser.add_argument(
