@@ -99,13 +99,26 @@ class DiscordNotifier:
         logger.info("Sent Discord test message to webhook %s", redact_webhook(self.webhook_url))
 
     def send_jobs(self, jobs: list[Job]) -> list[Job]:
-        """Send jobs in batches. Returns the jobs successfully accepted by Discord."""
+        """Send jobs in batches.
+
+        Returns jobs Discord accepted. If a later batch fails, earlier successful
+        batches are still returned so callers can checkpoint progress and avoid
+        duplicate notifications.
+        """
         sent: list[Job] = []
         for start in range(0, len(jobs), self.max_jobs_per_message):
             batch = jobs[start : start + self.max_jobs_per_message]
             embeds = [build_job_embed(job) for job in batch]
             payload: dict[str, Any] = {"embeds": embeds}
-            self._post(payload)
+            try:
+                self._post(payload)
+            except DiscordError as exc:
+                logger.error(
+                    "Discord batch failed after %d job(s) already accepted: %s",
+                    len(sent),
+                    exc,
+                )
+                break
             sent.extend(batch)
             logger.info(
                 "Notified Discord of %d job(s) via webhook %s",

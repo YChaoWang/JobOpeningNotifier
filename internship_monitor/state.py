@@ -13,6 +13,8 @@ from internship_monitor.models import Job, RepositoryState
 
 logger = logging.getLogger(__name__)
 
+STATE_SCHEMA_VERSION = 2
+
 
 class StateStore:
     def __init__(
@@ -28,6 +30,7 @@ class StateStore:
         self.seen_jobs_path = self.data_dir / seen_jobs_file
         self.pending_jobs_path = self.data_dir / pending_jobs_file
 
+        self.schema_version = STATE_SCHEMA_VERSION
         self.repository_state: dict[str, RepositoryState] = {}
         self.seen_jobs: dict[str, dict[str, Any]] = {}
         self.pending_jobs: list[Job] = []
@@ -38,9 +41,10 @@ class StateStore:
         raw_seen = _read_json(self.seen_jobs_path, default={})
         raw_pending = _read_json(self.pending_jobs_path, default=[])
 
-        migrated_repo, migrated_seen, migrated_pending = migrate_legacy_state(
+        migrated_repo, migrated_seen, migrated_pending, version = migrate_legacy_state(
             raw_repo, raw_seen, raw_pending
         )
+        self.schema_version = version
 
         self.repository_state = {
             str(name): RepositoryState.from_dict(value)
@@ -115,11 +119,20 @@ class StateStore:
     def save(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         repo_payload = {
-            name: state.to_dict()
-            for name, state in sorted(self.repository_state.items())
+            "_schema_version": STATE_SCHEMA_VERSION,
+            **{
+                name: state.to_dict()
+                for name, state in sorted(self.repository_state.items())
+            },
         }
-        seen_payload = dict(sorted(self.seen_jobs.items()))
-        pending_payload = [job.to_dict() for job in self.pending_jobs]
+        seen_payload = {
+            "_schema_version": STATE_SCHEMA_VERSION,
+            "jobs": dict(sorted(self.seen_jobs.items())),
+        }
+        pending_payload = {
+            "_schema_version": STATE_SCHEMA_VERSION,
+            "jobs": [job.to_dict() for job in self.pending_jobs],
+        }
 
         atomic_write_json(self.repository_state_path, repo_payload)
         atomic_write_json(self.seen_jobs_path, seen_payload)
@@ -130,15 +143,25 @@ def migrate_legacy_state(
     raw_repo: Any,
     raw_seen: Any,
     raw_pending: Any,
-) -> tuple[dict[str, Any], dict[str, Any], list[Any]]:
-    """Migrate older single-repo formats without dropping seen history."""
+) -> tuple[dict[str, Any], dict[str, Any], list[Any], int]:
+    """Migrate older formats without dropping seen history.
+
+    Returns (repositories, seen, pending, schema_version).
+    """
     repositories: dict[str, Any] = {}
     seen: dict[str, Any] = {}
     pending: list[Any] = []
+    version = STATE_SCHEMA_VERSION
 
     if isinstance(raw_repo, dict):
-        if _looks_like_repo_map(raw_repo):
-            repositories = dict(raw_repo)
+        version = int(raw_repo.get("_schema_version") or 1)
+        repo_body = {
+            key: value
+            for key, value in raw_repo.items()
+            if key != "_schema_version"
+        }
+        if _looks_like_repo_map(repo_body):
+            repositories = dict(repo_body)
         else:
             legacy_name = (
                 raw_repo.get("repository_name")
@@ -176,7 +199,9 @@ def migrate_legacy_state(
                         seen[str(item["job_id"])] = item
 
     if isinstance(raw_seen, dict):
-        if "jobs" in raw_seen and isinstance(raw_seen["jobs"], list):
+        if "jobs" in raw_seen and isinstance(raw_seen["jobs"], dict):
+            seen.update(_normalize_seen_map(raw_seen["jobs"]))
+        elif "jobs" in raw_seen and isinstance(raw_seen["jobs"], list):
             for item in raw_seen["jobs"]:
                 if isinstance(item, str):
                     seen[item] = {"seen": True}
@@ -185,7 +210,12 @@ def migrate_legacy_state(
         elif "seen_jobs" in raw_seen and isinstance(raw_seen["seen_jobs"], dict):
             seen.update(_normalize_seen_map(raw_seen["seen_jobs"]))
         else:
-            seen.update(_normalize_seen_map(raw_seen))
+            body = {
+                key: value
+                for key, value in raw_seen.items()
+                if key != "_schema_version"
+            }
+            seen.update(_normalize_seen_map(body))
     elif isinstance(raw_seen, list):
         for item in raw_seen:
             if isinstance(item, str):
@@ -195,10 +225,13 @@ def migrate_legacy_state(
 
     if isinstance(raw_pending, list):
         pending = list(raw_pending)
-    elif isinstance(raw_pending, dict) and isinstance(raw_pending.get("jobs"), list):
-        pending = list(raw_pending["jobs"])
+    elif isinstance(raw_pending, dict):
+        if isinstance(raw_pending.get("jobs"), list):
+            pending = list(raw_pending["jobs"])
+        else:
+            pending = []
 
-    return repositories, seen, pending
+    return repositories, seen, pending, max(version, 1)
 
 
 def _looks_like_repo_map(raw: dict[str, Any]) -> bool:
@@ -216,7 +249,11 @@ def _looks_like_repo_map(raw: dict[str, Any]) -> bool:
         isinstance(value, dict) for value in raw.values()
     ):
         return False
-    return all(isinstance(value, dict) for value in raw.values())
+    # Ignore metadata keys when checking value types.
+    values = [value for key, value in raw.items() if not str(key).startswith("_")]
+    if not values:
+        return True
+    return all(isinstance(value, dict) for value in values)
 
 
 def _normalize_seen_map(raw: dict[str, Any]) -> dict[str, Any]:

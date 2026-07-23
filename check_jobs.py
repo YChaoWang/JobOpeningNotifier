@@ -39,17 +39,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Send one clearly labeled Discord test message and exit",
     )
     parser.add_argument(
-        "--baseline-only",
+        "--notify-existing",
         action="store_true",
         help=(
-            "On first run only: store existing jobs as seen without Discord notifications. "
-            "Default first-run behavior notifies all matching jobs."
+            "Notify existing matching jobs on first-run / re-init instead of silent baseline"
         ),
     )
     parser.add_argument(
-        "--notify-existing",
+        "--baseline-only",
         action="store_true",
-        help=argparse.SUPPRESS,  # deprecated alias; first run notifies by default
+        help=argparse.SUPPRESS,  # compatibility no-op; silent baseline is already default
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Parse and compute notification decisions without Discord requests "
+            "or persistent state changes"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -64,7 +71,6 @@ def configure_logging(level: str) -> None:
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    # Reduce noisy third-party logs.
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
 
@@ -85,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         try:
             notifier.send_test_message()
-        except Exception as exc:  # noqa: BLE001 - surface Discord errors to CLI
+        except Exception as exc:  # noqa: BLE001
             logger.error("Discord test failed: %s", exc)
             return 1
         logger.info(
@@ -104,7 +110,9 @@ def main(argv: list[str] | None = None) -> int:
     state.load()
 
     discord = None
-    if webhook:
+    if args.dry_run:
+        logger.info("Dry-run mode: no Discord requests and no state writes")
+    elif webhook:
         discord = DiscordNotifier(
             webhook,
             max_jobs_per_message=config.notifications.max_jobs_per_message,
@@ -120,11 +128,24 @@ def main(argv: list[str] | None = None) -> int:
         state,
         github,
         discord,
-        baseline_only=args.baseline_only,
+        notify_existing=args.notify_existing,
+        dry_run=args.dry_run,
     )
     summary = pipeline.run()
 
-    # Non-zero if every enabled repository failed.
+    if args.dry_run:
+        logger.info(
+            "Dry-run summary: parsed=%d filtered=%d already_seen=%d "
+            "would_notify=%d would_remain_pending=%d "
+            "(limit max_jobs_per_run=%d)",
+            summary.jobs_parsed,
+            summary.jobs_filtered,
+            summary.jobs_already_seen,
+            summary.jobs_would_notify,
+            summary.jobs_would_remain_pending,
+            config.notifications.max_jobs_per_run,
+        )
+
     enabled = [repo for repo in config.repositories if repo.enabled]
     if enabled and summary.repositories_failed == len(enabled):
         return 1

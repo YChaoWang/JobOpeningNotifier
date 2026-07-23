@@ -32,7 +32,23 @@ class MarkdownParserTests(unittest.TestCase):
         self.assertIn("Mountain View", google.location)
         self.assertIn("Sunnyvale", google.location)
         self.assertIsNotNone(google.apply_url)
-        self.assertNotIn("utm_source", google.apply_url or "")
+        # Original URL may retain tracking params; identity normalizes them away.
+        self.assertEqual(
+            make_job_id(
+                apply_url=google.apply_url,
+                company=google.company,
+                role=google.role,
+                location=google.location,
+                source_repo=self.repo.repo,
+            ),
+            make_job_id(
+                apply_url="https://www.google.com/about/careers/applications/jobs/results/123",
+                company=google.company,
+                role=google.role,
+                location=google.location,
+                source_repo=self.repo.repo,
+            ),
+        )
 
         closed = next(job for job in result.jobs if job.company == "Salesforce")
         self.assertTrue(closed.closed)
@@ -50,8 +66,60 @@ class MarkdownParserTests(unittest.TestCase):
         self.assertEqual(len(result.jobs), 2)
         self.assertEqual(result.jobs[0].company, "Contoso")
         self.assertEqual(result.jobs[1].role, "Artificial Intelligence Intern")
-        self.assertNotIn("utm_campaign", result.jobs[0].apply_url or "")
-        self.assertNotIn("gh_src", result.jobs[0].apply_url or "")
+        # Display URL may keep tracking params; IDs still normalize.
+        self.assertEqual(
+            make_job_id(
+                apply_url=result.jobs[0].apply_url,
+                company=result.jobs[0].company,
+                role=result.jobs[0].role,
+                location=result.jobs[0].location,
+                source_repo=self.repo.repo,
+            ),
+            make_job_id(
+                apply_url="https://careers.contoso.example/jobs/1",
+                company=result.jobs[0].company,
+                role=result.jobs[0].role,
+                location=result.jobs[0].location,
+                source_repo=self.repo.repo,
+            ),
+        )
+
+    def test_markdown_edge_cases(self) -> None:
+        result = self.parser.parse(read_fixture("markdown_edge_cases.md"), self.repo)
+        companies = [job.company for job in result.jobs]
+        self.assertIn("Contoso", companies)
+        # Repeated-company markers inherit Contoso.
+        self.assertGreaterEqual(companies.count("Contoso"), 3)
+        escaped = next(job for job in result.jobs if "Backend" in job.role)
+        self.assertIn("Backend", escaped.role)
+        multi = next(
+            job
+            for job in result.jobs
+            if job.role.startswith("Software Engineer Intern")
+        )
+        self.assertIn("Redmond", multi.location)
+        self.assertIn("Bellevue", multi.location)
+        closed = next(job for job in result.jobs if job.company == "ClosedCo")
+        self.assertTrue(closed.closed)
+        nosponsor = next(job for job in result.jobs if job.company == "NoSponsor")
+        self.assertEqual(nosponsor.sponsorship, Sponsorship.UNAVAILABLE)
+        html_link = next(
+            job
+            for job in result.jobs
+            if "contoso.example/jobs/1" in (job.apply_url or "")
+        )
+        self.assertTrue(html_link.apply_url)
+
+    def test_column_order_and_within_repo_dedupe(self) -> None:
+        content = """
+| Apply | Title | Employer | Locations |
+| --- | --- | --- | --- |
+| [a](https://ex.com/same?utm_source=1) | Software Engineer Intern | DupCo | SF |
+| [a](https://ex.com/same?utm_medium=2) | Software Engineer Intern | DupCo | SF |
+"""
+        result = self.parser.parse(content, self.repo)
+        self.assertEqual(len(result.jobs), 2)
+        self.assertEqual(result.jobs[0].job_id, result.jobs[1].job_id)
 
 
 class HtmlParserTests(unittest.TestCase):
@@ -138,21 +206,48 @@ class AIValidationTests(unittest.TestCase):
         self.assertEqual(jobs, [])
         self.assertTrue(warnings)
 
+    def test_structured_output_schema_payload(self) -> None:
+        payload = """
+        {
+          "jobs": [
+            {
+              "company": "GoodCo",
+              "role": "Software Engineer Intern",
+              "location": "SF",
+              "apply_url": "https://careers.good.example/jobs/1",
+              "added": null,
+              "closed": false,
+              "sponsorship": "unknown"
+            }
+          ]
+        }
+        """
+        jobs, warnings = parse_ai_jobs(
+            payload,
+            source_repo="owner/repo",
+            source_url="https://example.com",
+        )
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].company, "GoodCo")
+        self.assertEqual(warnings, [])
+
     def test_hallucinated_incomplete_records_rejected(self) -> None:
         payload = """
-        [
-          {"company": "", "role": "", "location": "", "apply_url": null},
-          {"company": "OnlyCo", "role": "", "location": "SF", "apply_url": "not-a-url"},
-          {
-            "company": "GoodCo",
-            "role": "Software Engineer Intern",
-            "location": "SF",
-            "apply_url": "https://careers.good.example/jobs/1",
-            "added": null,
-            "closed": false,
-            "sponsorship": "unknown"
-          }
-        ]
+        {
+          "jobs": [
+            {"company": "", "role": "", "location": "", "apply_url": null, "added": null, "closed": false, "sponsorship": "unknown"},
+            {"company": "OnlyCo", "role": "", "location": "SF", "apply_url": "not-a-url", "added": null, "closed": false, "sponsorship": "unknown"},
+            {
+              "company": "GoodCo",
+              "role": "Software Engineer Intern",
+              "location": "SF",
+              "apply_url": "https://careers.good.example/jobs/1",
+              "added": null,
+              "closed": false,
+              "sponsorship": "unknown"
+            }
+          ]
+        }
         """
         jobs, warnings = parse_ai_jobs(
             payload,
@@ -162,6 +257,15 @@ class AIValidationTests(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].company, "GoodCo")
         self.assertTrue(any("Rejected" in warning for warning in warnings))
+
+    def test_response_format_uses_json_schema(self) -> None:
+        from internship_monitor.schemas import AI_JOBS_RESPONSE_FORMAT
+
+        self.assertEqual(AI_JOBS_RESPONSE_FORMAT["type"], "json_schema")
+        self.assertTrue(AI_JOBS_RESPONSE_FORMAT["json_schema"]["strict"])
+        self.assertEqual(
+            AI_JOBS_RESPONSE_FORMAT["json_schema"]["schema"]["required"], ["jobs"]
+        )
 
 
 if __name__ == "__main__":

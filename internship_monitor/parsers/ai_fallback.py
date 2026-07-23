@@ -1,4 +1,4 @@
-"""GitHub Models AI fallback parser (OpenAI-compatible)."""
+"""GitHub Models AI fallback parser (OpenAI-compatible structured outputs)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from internship_monitor.models import (
     RepositoryConfig,
 )
 from internship_monitor.normalization import validate_job_dict
+from internship_monitor.schemas import AI_JOBS_RESPONSE_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +29,15 @@ Rules:
 - Do not invent missing companies, roles, locations, dates, sponsorship status, or URLs.
 - Preserve application URLs exactly when possible.
 - Ignore navigation links, contribution links, Discord links, repository links, and informational sections.
-- Return an empty JSON array if there are no job listings.
+- Return jobs as an empty array if there are no job listings.
 - Mark closed jobs as closed=true.
-- Output valid JSON only. No markdown fences.
+- Follow the provided JSON Schema exactly.
 
-Return a JSON array of objects with keys:
-company, role, location, apply_url, added, closed, sponsorship
-
-sponsorship must be one of:
-available, unavailable, citizenship_required, unknown
-
-Use null for unknown apply_url/added. Use empty strings only when the field is present but blank.
+Field guidance:
+- company, role, location: strings (use "" only when the cell is blank)
+- apply_url, added: string or null when unknown
+- closed: boolean
+- sponsorship: one of available, unavailable, citizenship_required, unknown
 """
 
 SECTION_DROP_RE = re.compile(
@@ -124,7 +123,6 @@ class AIFallbackParser:
         warnings.extend(parse_warnings)
 
         if parse_warnings and not jobs:
-            # Invalid output: do not accept partial/guessed jobs.
             return ParseResult(
                 jobs=[],
                 parser=ParserName.AI,
@@ -144,35 +142,52 @@ class AIFallbackParser:
 
     def _complete(self, content: str, *, token: str) -> str:
         client = self._build_client(token)
-        kwargs: dict[str, Any] = {
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    "Extract job listings from this README content.\n\n"
+                    f"{content}"
+                ),
+            },
+        ]
+        base_kwargs: dict[str, Any] = {
             "model": self.config.model,
             "temperature": 0,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        "Extract job listings from this README content and return "
-                        "JSON only:\n\n"
-                        f"{content}"
-                    ),
-                },
-            ],
+            "messages": messages,
         }
-        # Prefer strict JSON when supported.
-        try:
-            response = client.chat.completions.create(
-                **kwargs,
-                response_format={"type": "json_object"},
-            )
-        except TypeError:
-            response = client.chat.completions.create(**kwargs)
-        except Exception:
-            # Some models reject response_format; retry without it once.
-            response = client.chat.completions.create(**kwargs)
 
-        message = response.choices[0].message.content
-        return message or ""
+        # Prefer JSON Schema Structured Outputs, then json_object, then unconstrained.
+        response_formats: list[dict[str, Any] | None] = [
+            AI_JOBS_RESPONSE_FORMAT,
+            {"type": "json_object"},
+            None,
+        ]
+        last_error: Exception | None = None
+        for response_format in response_formats:
+            kwargs = dict(base_kwargs)
+            if response_format is not None:
+                kwargs["response_format"] = response_format
+            try:
+                response = client.chat.completions.create(**kwargs)
+                message = response.choices[0].message.content
+                return message or ""
+            except TypeError as exc:
+                last_error = exc
+                continue
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                logger.debug(
+                    "AI completion with response_format=%s failed: %s",
+                    (response_format or {}).get("type") if response_format else None,
+                    exc.__class__.__name__,
+                )
+                continue
+
+        raise RuntimeError(
+            f"AI completion failed: {last_error.__class__.__name__ if last_error else 'unknown'}"
+        )
 
     def _build_client(self, token: str) -> Any:
         if self._client_factory is not None:
@@ -186,7 +201,6 @@ def prepare_readme_for_ai(content: str, *, max_characters: int) -> str:
     text = HTML_COMMENT_RE.sub("", content or "")
     text = BADGE_RE.sub("", text)
 
-    # Drop obvious non-listing sections when headings are present.
     lines = text.splitlines()
     kept: list[str] = []
     skipping = False
@@ -201,7 +215,6 @@ def prepare_readme_for_ai(content: str, *, max_characters: int) -> str:
         kept.append(line)
     text = "\n".join(kept)
 
-    # Prefer table-ish regions when present.
     if "<table" in text.lower() or "|" in text:
         start_candidates = []
         lower = text.lower()
@@ -230,20 +243,13 @@ def parse_ai_jobs(
     if payload is None:
         return [], ["AI returned invalid JSON; ignoring output"]
 
-    if isinstance(payload, dict):
-        for key in ("jobs", "items", "listings", "data"):
-            if isinstance(payload.get(key), list):
-                payload = payload[key]
-                break
-        else:
-            return [], ["AI JSON object did not contain a jobs array"]
-
-    if not isinstance(payload, list):
-        return [], ["AI JSON root must be an array of jobs"]
+    jobs_raw = _extract_jobs_array(payload)
+    if jobs_raw is None:
+        return [], ["AI JSON did not match structured output schema (missing jobs array)"]
 
     jobs = []
     rejected = 0
-    for item in payload:
+    for item in jobs_raw:
         job = validate_job_dict(
             item if isinstance(item, dict) else {},
             source_repo=source_repo,
@@ -258,6 +264,22 @@ def parse_ai_jobs(
     if rejected:
         warnings.append(f"Rejected {rejected} invalid/incomplete AI job records")
     return jobs, warnings
+
+
+def _extract_jobs_array(payload: Any) -> list[Any] | None:
+    """Accept structured-output object `{jobs:[...]}` or legacy bare arrays."""
+    if isinstance(payload, dict):
+        jobs = payload.get("jobs")
+        if isinstance(jobs, list):
+            return jobs
+        for key in ("items", "listings", "data"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        return None
+    if isinstance(payload, list):
+        return payload
+    return None
 
 
 def _load_json_payload(raw_text: str) -> Any | None:

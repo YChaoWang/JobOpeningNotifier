@@ -169,19 +169,17 @@ def build_job(
     role = (role or "").strip()
     location = (location or "").strip()
     added_clean = (added or "").strip() or None
-    apply_clean = normalize_url(apply_url) if apply_url else None
-    # Preserve original URL text when normalization succeeds on a slightly dirty URL.
-    if apply_url and apply_clean:
-        # Keep a cleaned absolute URL (normalized), not the raw tracking-laden one.
-        final_url = apply_clean
-    else:
-        final_url = None
 
-    if not is_usable_job(company=company, role=role, apply_url=final_url):
+    raw_url = (apply_url or "").strip() or None
+    normalized = normalize_url(raw_url) if raw_url else None
+    # Keep the original URL for Discord/user-facing output; identity uses normalization.
+    display_url = raw_url if normalized else None
+
+    if not is_usable_job(company=company, role=role, apply_url=normalized or raw_url):
         return None
 
     job_id = make_job_id(
-        apply_url=final_url,
+        apply_url=raw_url,
         company=company,
         role=role,
         location=location,
@@ -191,7 +189,7 @@ def build_job(
         company=company,
         role=role,
         location=location,
-        apply_url=final_url,
+        apply_url=display_url,
         added=added_clean,
         closed=closed,
         sponsorship=sponsorship,
