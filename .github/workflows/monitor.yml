@@ -11,7 +11,12 @@ on:
         default: false
         type: boolean
       notify_existing:
-        description: "Notify existing matching jobs (testing only)"
+        description: "Deprecated (first run already notifies matching jobs)"
+        required: false
+        default: false
+        type: boolean
+      baseline_only:
+        description: "First run only: seed seen jobs without Discord notifications"
         required: false
         default: false
         type: boolean
@@ -58,8 +63,8 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           EXTRA_ARGS=""
-          if [ "${{ inputs.notify_existing }}" = "true" ]; then
-            EXTRA_ARGS="--notify-existing"
+          if [ "${{ inputs.baseline_only }}" = "true" ]; then
+            EXTRA_ARGS="--baseline-only"
           fi
           uv run python check_jobs.py $EXTRA_ARGS
 

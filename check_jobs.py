@@ -39,9 +39,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Send one clearly labeled Discord test message and exit",
     )
     parser.add_argument(
+        "--baseline-only",
+        action="store_true",
+        help=(
+            "On first run only: store existing jobs as seen without Discord notifications. "
+            "Default first-run behavior notifies all matching jobs."
+        ),
+    )
+    parser.add_argument(
         "--notify-existing",
         action="store_true",
-        help="Notify existing matching jobs (including first-run baseline). For testing only.",
+        help=argparse.SUPPRESS,  # deprecated alias; first run notifies by default
     )
     parser.add_argument(
         "--log-level",
@@ -70,14 +78,19 @@ def main(argv: list[str] | None = None) -> int:
     github_token = os.getenv("GITHUB_TOKEN", "").strip() or None
 
     if args.test_discord:
-        if not webhook:
-            logger.error("DISCORD_WEBHOOK_URL is required for --test-discord")
+        try:
+            notifier = DiscordNotifier(webhook)
+        except ValueError as exc:
+            logger.error("%s", exc)
             return 2
-        notifier = DiscordNotifier(webhook)
-        notifier.send_test_message()
+        try:
+            notifier.send_test_message()
+        except Exception as exc:  # noqa: BLE001 - surface Discord errors to CLI
+            logger.error("Discord test failed: %s", exc)
+            return 1
         logger.info(
             "Discord test completed via %s",
-            redact_webhook(webhook),
+            redact_webhook(notifier.webhook_url),
         )
         return 0
 
@@ -107,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         state,
         github,
         discord,
-        notify_existing=args.notify_existing,
+        baseline_only=args.baseline_only,
     )
     summary = pipeline.run()
 

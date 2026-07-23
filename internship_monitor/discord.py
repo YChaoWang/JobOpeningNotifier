@@ -21,6 +21,58 @@ class DiscordError(Exception):
     """Raised when Discord rejects a notification permanently."""
 
 
+def validate_webhook_url(webhook_url: str) -> str:
+    """Return a cleaned webhook URL or raise ValueError with a clear message."""
+    url = (webhook_url or "").strip().strip('"').strip("'")
+    if not url:
+        raise ValueError("DISCORD_WEBHOOK_URL is required")
+
+    placeholder_markers = (
+        "...",
+        "YOUR_WEBHOOK_URL",
+        "NEW_ID",
+        "NEW_TOKEN",
+        "<id>",
+        "<token>",
+        "YOUR_ID",
+        "YOUR_TOKEN",
+    )
+    if any(marker in url for marker in placeholder_markers):
+        raise ValueError(
+            "DISCORD_WEBHOOK_URL still looks like a placeholder example. "
+            "Paste the real URL from Discord → channel settings → Integrations → "
+            "Webhooks (it looks like https://discord.com/api/webhooks/123456.../abcdef...)."
+        )
+
+    parts = urlsplit(url)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError(
+            "DISCORD_WEBHOOK_URL must be a full URL starting with https:// "
+            f"(got {redact_webhook(url)!r})"
+        )
+    if "discord.com" not in parts.netloc and "discordapp.com" not in parts.netloc:
+        raise ValueError(
+            "DISCORD_WEBHOOK_URL host should be discord.com or discordapp.com "
+            f"(got {parts.netloc!r})"
+        )
+    if "/api/webhooks/" not in parts.path:
+        raise ValueError(
+            "DISCORD_WEBHOOK_URL path should contain /api/webhooks/"
+        )
+
+    path_parts = [p for p in parts.path.split("/") if p]
+    # Expect: api, webhooks, <snowflake id>, <token>
+    if len(path_parts) < 4 or path_parts[0] != "api" or path_parts[1] != "webhooks":
+        raise ValueError("DISCORD_WEBHOOK_URL path is malformed")
+    webhook_id = path_parts[2]
+    if not webhook_id.isdigit():
+        raise ValueError(
+            "DISCORD_WEBHOOK_URL webhook id must be numeric. "
+            "You may still be using a placeholder instead of the real URL from Discord."
+        )
+    return url
+
+
 class DiscordNotifier:
     def __init__(
         self,
@@ -30,9 +82,7 @@ class DiscordNotifier:
         timeout: float = 30.0,
         max_jobs_per_message: int = 5,
     ) -> None:
-        if not webhook_url:
-            raise ValueError("DISCORD_WEBHOOK_URL is required")
-        self.webhook_url = webhook_url
+        self.webhook_url = validate_webhook_url(webhook_url)
         self.session = session or requests.Session()
         self.timeout = timeout
         self.max_jobs_per_message = max(1, min(max_jobs_per_message, MAX_EMBEDS_PER_MESSAGE))
@@ -107,8 +157,10 @@ class DiscordNotifier:
                 continue
 
             # Permanent 4xx (other than 429)
+            detail = _safe_response_detail(response)
             raise DiscordError(
                 f"Discord webhook rejected payload with HTTP {response.status_code}"
+                + (f": {detail}" if detail else "")
             )
 
         raise DiscordError(
@@ -197,3 +249,10 @@ def _retry_after(response: requests.Response) -> float:
         except ValueError:
             pass
     return 2.0
+
+
+def _safe_response_detail(response: requests.Response) -> str:
+    text = (response.text or "").strip()
+    if not text:
+        return ""
+    return _clip(text.replace("\n", " "), 300)

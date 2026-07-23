@@ -45,14 +45,14 @@ class MonitorPipeline:
         github: GitHubClient,
         discord: DiscordNotifier | None,
         *,
-        notify_existing: bool = False,
+        baseline_only: bool = False,
         ai_parser: AIFallbackParser | None = None,
     ) -> None:
         self.config = config
         self.state = state
         self.github = github
         self.discord = discord
-        self.notify_existing = notify_existing
+        self.baseline_only = baseline_only
         self.markdown_parser = MarkdownTableParser()
         self.html_parser = HtmlTableParser()
         self.ai_parser = ai_parser or AIFallbackParser(config.ai)
@@ -196,15 +196,22 @@ class MonitorPipeline:
         )
 
         is_first_run = not repo_state.initialized
-        if is_first_run and not self.notify_existing:
-            # Baseline: mark all current jobs seen, notify nothing.
+        if is_first_run and self.baseline_only:
+            # Opt-out: seed seen IDs without Discord notifications.
             self.state.mark_seen_many(unique_jobs, notified=False)
             logger.info(
-                "[%s] First-run baseline: stored %d jobs as seen (no Discord notifications)",
+                "[%s] First-run baseline-only: stored %d jobs as seen (no Discord notifications)",
                 repository.name,
                 len(unique_jobs),
             )
         else:
+            if is_first_run:
+                logger.info(
+                    "[%s] First run: notifying all matching jobs (%d accepted after filters)",
+                    repository.name,
+                    len(accepted),
+                )
+
             new_jobs: list[Job] = []
             for job in accepted:
                 if self.state.is_seen(job.job_id):
