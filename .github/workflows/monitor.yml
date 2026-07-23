@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
   models: read
 
 jobs:
@@ -45,6 +45,19 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
+      - name: Restore monitor state cache
+        if: ${{ inputs.test_discord != true }}
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: internship-monitor-state-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            internship-monitor-state-${{ github.repository }}-
+
+      - name: Ensure data directory exists
+        if: ${{ inputs.test_discord != true }}
+        run: mkdir -p data
+
       - name: Discord connectivity test
         if: ${{ inputs.test_discord == true }}
         env:
@@ -63,16 +76,9 @@ jobs:
           fi
           uv run python check_jobs.py $EXTRA_ARGS
 
-      - name: Commit state updates
-        if: ${{ inputs.test_discord != true }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/repository_state.json data/seen_jobs.json data/pending_jobs.json
-          if git diff --staged --quiet; then
-            echo "No state changes to commit."
-            exit 0
-          fi
-          git commit -m "chore: update internship monitor state"
-          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-          git push
+      - name: Save monitor state cache
+        if: ${{ success() && inputs.test_discord != true }}
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: internship-monitor-state-${{ github.repository }}-${{ github.run_id }}

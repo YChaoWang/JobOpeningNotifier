@@ -30,3 +30,7 @@ env/
 # Local scratch
 tmp/
 *.log
+
+# Runtime monitor state (never commit personal/CI job history)
+data/*.json
+!data/README.md

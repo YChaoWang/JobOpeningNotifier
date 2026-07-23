@@ -9,7 +9,7 @@ Watch public internship/job README lists on GitHub, merge many sources, and post
 3. Add secret **`DISCORD_WEBHOOK_URL`**.  
 4. **Enable Actions** on the fork, then run **Internship Monitor**.  
 
-Actions in your fork only update *your* `data/` state. The bot **reads** listing READMEs; it never writes to SimplifyJobs, sndsh404, or other sources.
+Runtime state under `data/` is **not** part of the open-source tree (gitignored). On Actions it is stored in the workflow cache only — nothing writes job history back into git. The bot only **reads** listing READMEs; it never modifies SimplifyJobs, sndsh404, or other sources.
 
 **Starter sources** (edit freely):
 
@@ -88,9 +88,9 @@ uv run python check_jobs.py
 | Schedule | Every 30 minutes |
 | Manual | `workflow_dispatch` |
 | Inputs | `test_discord`, `notify_existing` |
-| Permissions | `contents: write`, `models: read` |
+| Permissions | `contents: read`, `models: read` |
 | Secret | `DISCORD_WEBHOOK_URL` |
-| State commit | `chore: update internship monitor state` (only if files changed) |
+| State | Cached in Actions (`data/`); **not** committed to git |
 
 ## Behavior notes
 
@@ -102,7 +102,8 @@ uv run python check_jobs.py
 | Notify order | Oldest → newest (newest job is the latest Discord message) |
 | Fallback ID | No URL → company + role + location + source repo |
 | Filters | Case-insensitive; closed never notified |
-| Public forks | Webhook stays secret; committed `data/*.json` is public |
+| Public forks | Webhook stays secret; `data/*.json` is gitignored (not in the repo) |
+| State loss | If the Actions cache is evicted, the next run re-baselines silently |
 
 ## Troubleshooting
 
@@ -112,11 +113,12 @@ uv run python check_jobs.py
 | No Discord messages on first run | Expected (silent baseline). Use `notify_existing` |
 | No messages later | Set `DISCORD_WEBHOOK_URL`; check filters in `config.yaml` |
 | Pending file keeps growing | Webhook missing or Discord errors — fix secret, re-run |
+| Suddenly many “new” jobs | Actions cache was evicted — expected re-baseline; use `notify_existing` if you want a dump |
 | Repo not found | Check `repo` / `branch` / `readme_path` |
 
 ## Security
 
-- Never commit webhook URLs or tokens  
+- Never commit webhook URLs, tokens, or `data/*.json` state  
 - Logs redact webhook URLs  
 - Arbitrary README formats and AI extraction are best-effort  
 

@@ -5,8 +5,8 @@ Thanks for improving JobOpeningNotifier.
 ## Pull requests
 
 - Keep changes focused (one concern per PR when practical).  
-- Do **not** commit personal `DISCORD_WEBHOOK_URL`, tokens, or production `data/` state from your fork.  
-- Upstream `data/*.json` should stay empty placeholders.  
+- Do **not** commit personal `DISCORD_WEBHOOK_URL`, tokens, or `data/*.json` state.  
+- Upstream keeps `data/` documentation only (`data/README.md`); runtime JSON is gitignored.  
 - Run tests before opening a PR:
 
 ```bash
