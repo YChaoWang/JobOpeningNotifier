@@ -1,1 +1,222 @@
-{}
+{
+  "_schema_version": 2,
+  "jobs": {
+    "0bdaf39f127fb6f4d38656992d4c4d5819585f369a22e559b76afaf0644cecf1": {
+      "apply_url": "https://jobs.smartrecruiters.com/WesternDigital/744000138727213-summer-2027-software-engineering-internship",
+      "company": "Western Digital",
+      "notified": true,
+      "role": "Software Engineering Intern (Summer 2027)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "157414870b3cb6f8769da232bf470abce42e3235482770b248e323a34e4b0d59": {
+      "apply_url": "https://lifeattiktok.com/search/7562342433721862405?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Monetization Technology",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "17661edae51628d5f04d573b318cd0ff65a27e4eb3063d16a871bdd244f4a3c1": {
+      "apply_url": "https://ancestry.wd501.myworkdayjobs.com/Careers/job/Remote/Machine-Learning-Engineer--Co-op_R003378?utm_source=Simplify&ref=Simplify",
+      "company": "Ancestry",
+      "notified": true,
+      "role": "Machine Learning Engineer Co-op 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "18f42cdff0c4a388dc09d5231f46cbee204075345a64671826b38121fb505360": {
+      "apply_url": "https://lifeattiktok.com/search/7532254890627696903?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Data Scientist Intern - TikTok Shop User Product DS 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "21c01f696e72ec2a3d65b815d85a327469ea8b7f2beb83f8d371e4cb2d507ec1": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7535951608832657682/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Global E-commerce Risk Control 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "2adc65369867790d0c6fa47ebd929cb42e78f26d20f8344bce9b9e581ad5c6c6": {
+      "apply_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site/job/California---San-Francisco/Summer-2027-Intern---Software-Engineer_JR340771-1",
+      "company": "Salesforce",
+      "notified": false,
+      "role": "Software Engineer Intern (Futureforce) 🔒",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "2b15b4129504b3da34f126d49a73202c1600cd1af50e6301c7734f3cb9c32598": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7535168003103033618/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - E-commerce Governance Algorithms",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "3363e2744caab19de45589c9f8d5f8b92a125f068408396849a2747d50f96b56": {
+      "apply_url": "https://boystown.wd1.myworkdayjobs.com/boystowncareers/job/Omaha-NE/Artificial-Intelligence---Machine-Learning-Intern_REQ-2026-8543-1?utm_source=Simplify&ref=Simplify",
+      "company": "Boys Town",
+      "notified": true,
+      "role": "Artificial Intelligence & Machine Learning Intern",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "3cd45938e9113b9616964eeea46b36f34b5e3045a6f4827abba904215b138511": {
+      "apply_url": "https://job-boards.greenhouse.io/lilasciences/jobs/4280809009?utm_source=Simplify&ref=Simplify",
+      "company": "Lila Sciences",
+      "notified": true,
+      "role": "Machine Learning for Digital Twins Co-op 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "4ae625ba70323653be498d8e37b89f2e49068ed5608f7b525c8ed66bff57b4ca": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7535953226975054098/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Global E-commerce Risk Control",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "4bdf17d3d02e4e226ee9689c352f00465fd5939993b5f130fb0c9a66c9bdc5c8": {
+      "apply_url": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210765492?utm_source=Simplify&ref=Simplify",
+      "company": "JP Morgan Chase",
+      "notified": true,
+      "role": "Machine Learning Center of Excellence Intern - NLP 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "4d83f57916c2dbc32d17608278df4eb8b859787a7ed5946b2dad6941a781c68c": {
+      "apply_url": "https://job-boards.greenhouse.io/oldmissioncapital/jobs/7796180003",
+      "company": "Old Mission",
+      "notified": true,
+      "role": "Software Engineer Intern (Summer 2027, June Start)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "5c92a117d5e30107db27a80212ab3385bd502a57a8978d7c4398674823d73361": {
+      "apply_url": "https://job-boards.greenhouse.io/neuralink/jobs/6594422003",
+      "company": "Neuralink",
+      "notified": true,
+      "role": "Software Engineer Intern, BCI Applications",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "5d0aac6a7ff78d763425df80852812228ca8f09d86f836c57207de20813fdaa9": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7543005612200970503/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - E-Commerce Knowledge Graph - Computer Vision/Multimodal/Natural Language Processing",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "649ca3836d7d8453c376b02a9bef372d2621f36e9e19a177634ee3fb3b9c5c6a": {
+      "apply_url": "https://lifeattiktok.com/search/7534855949620119815?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "6bb5f4a3156b63786571607afb6077d8f44f011f8dac33d31198305c35919992": {
+      "apply_url": "https://www.google.com/about/careers/applications/jobs/results/85564713261245126-software-engineering-intern/",
+      "company": "Google",
+      "notified": true,
+      "role": "Software Engineering Intern, BS (Summer 2027)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "817381037c0bd99039436b946959fa30c30f07504bf89c142d3619c209614f76": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7539697151993268488/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Research Scientist Intern - Applied Machine Learning-Enterprise 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "8266f3501619865ee6c5bfbd0218b0b5ad33a2b1791e51dff2b48e443b1a3a30": {
+      "apply_url": "https://job-boards.greenhouse.io/thetradedesk/jobs/5187605007",
+      "company": "The Trade Desk",
+      "notified": true,
+      "role": "Software Engineering Intern (North America, Summer 2027)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "869405be39d2a17634b8dc13a1c5b81e4b5f008fe974c485d0a0f6bb91d9f7c5": {
+      "apply_url": "https://lifeattiktok.com/search/7527589557336869138?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Trust and Safety - CV/NLP/Multimodal LLM 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "92d91562567f91b1cd36e93c7daf33b350acd3a095f1f9b47e783d273ed51ced": {
+      "apply_url": "https://www.bluerivertechnology.com/job/?gh_jid=7947246&utm_source=Simplify&ref=Simplify",
+      "company": "Blue River Technology",
+      "notified": true,
+      "role": "Machine Learning Intern - Autonomy",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "94fa54f9eabe444cd053196eef1530bb713a64f836603ed7025ba16157b32006": {
+      "apply_url": "https://jobs.uber.com/en/jobs/300697/",
+      "company": "Uber",
+      "notified": true,
+      "role": "Software Engineering Intern (Summer 2027, Uber Career Prep)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "9a2f8723580ec6e3c04f3e4c54384bb6c3ebcf406e09cc60ccfd9b3c44eb830b": {
+      "apply_url": "https://eewl.fa.us6.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/10300?utm_source=Simplify&ref=Simplify",
+      "company": "Sundt",
+      "notified": true,
+      "role": "Support Group Intern - Artificial Intelligence",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "9e6eeedb9a2c600dc1b0206bee3b00426538cd2808da726380a53864627a0b08": {
+      "apply_url": "https://jobs.lever.co/plus-2/c143df6e-66c2-4498-b19b-8323f9954ca9/apply?utm_source=Simplify&ref=Simplify",
+      "company": "PlusAI",
+      "notified": true,
+      "role": "Computer Vision Engineer Intern 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "adcfe42c39158dd9ee0d31d43c2e216b2d5d105e802cb727bf817c140fa65d50": {
+      "apply_url": "https://lifeattiktok.com/search/7527065936093858055?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Tiktok-Recommendation 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "cb424eef18e775d962c06a1d26030edfb3c2d301399f88c9090310ecd1c56901": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7533045355162044690/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Software Engineer Intern - Applied Machine Learning-Enterprise 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "d33e48c0201a37d5254d21bb5824ef76097ba275ef5fe78dca71458d4b75c91f": {
+      "apply_url": "https://jobs.bytedance.com/en/position/7535171166420453639/detail?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 ByteDance",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - E-commerce Governance Algorithms 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "d503169daf91cfb398bda5d8a7ba6ab46ffbfb064a941828e9e2f0b8bf6149e3": {
+      "apply_url": "https://lifeattiktok.com/search/7527077153591675154?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 TikTok",
+      "notified": true,
+      "role": "Machine Learning Engineer Intern - Global E-Commerce Content Recommendation",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "df9e0f5dc1de7e9b7bf80cfcb5eba19f75db7236f723acf4b471c9bffd46e8d9": {
+      "apply_url": "https://jobs.ashbyhq.com/netic/b0ea7aab-8eea-4d31-96f9-278364180ae7",
+      "company": "Netic",
+      "notified": true,
+      "role": "Software Engineer Intern, Agent Platform / Full Stack (2026-2027)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    },
+    "e9d9bae62ab16c978cc8aad195b16289ac67b8069d5b7bef575e16cc07c9c79a": {
+      "apply_url": "https://www.metacareers.com/jobs/2281218542616482?utm_source=Simplify&ref=Simplify",
+      "company": "🔥 Meta",
+      "notified": true,
+      "role": "Research Scientist Intern - Monetization Computer Vision 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "ea124cac4fd216e333016049b273a35feb95aa246faaf309e354cf7e9322c56a": {
+      "apply_url": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210770593?utm_source=Simplify&ref=Simplify",
+      "company": "JP Morgan Chase",
+      "notified": true,
+      "role": "Machine Learning Center of Excellence Summer Associate Time Series & Reinforcement Learning Interns… 🎓",
+      "source_repo": "SimplifyJobs/Summer2026-Internships"
+    },
+    "fcc68a560e60d23127bd21e33eceaf4b10c31fcce8815a359a38afeb97bd4b74": {
+      "apply_url": "https://jobs.smartrecruiters.com/WesternDigital/744000138184309",
+      "company": "Western Digital",
+      "notified": true,
+      "role": "Software Engineering Co-op (Winter 2027)",
+      "source_repo": "sndsh404/summer-2027-internships"
+    }
+  }
+}
