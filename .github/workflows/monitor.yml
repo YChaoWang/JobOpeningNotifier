@@ -1,0 +1,77 @@
+name: Internship Monitor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_discord:
+        description: "Send a Discord test message only"
+        required: false
+        default: false
+        type: boolean
+      notify_existing:
+        description: "Notify existing matching jobs (testing only)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: internship-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Discord connectivity test
+        if: ${{ inputs.test_discord == true }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: uv run python check_jobs.py --test-discord
+
+      - name: Run internship monitor
+        if: ${{ inputs.test_discord != true }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ inputs.notify_existing }}" = "true" ]; then
+            EXTRA_ARGS="--notify-existing"
+          fi
+          uv run python check_jobs.py $EXTRA_ARGS
+
+      - name: Commit state updates
+        if: ${{ inputs.test_discord != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/repository_state.json data/seen_jobs.json data/pending_jobs.json
+          if git diff --staged --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: update internship monitor state"
+          git push

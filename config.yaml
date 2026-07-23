@@ -1,0 +1,42 @@
+repositories:
+  - name: simplify-summer-2026
+    repo: SimplifyJobs/Summer2026-Internships
+    branch: dev
+    readme_path: README.md
+    enabled: true
+
+  - name: summer-2027
+    repo: sndsh404/summer-2027-internships
+    branch: main
+    readme_path: README.md
+    enabled: true
+
+filters:
+  include_keywords:
+    - software engineer
+    - software engineering
+    - machine learning
+    - artificial intelligence
+    - computer vision
+    - data scientist
+    - data engineering
+
+  exclude_keywords:
+    - phd
+    - postdoctoral
+
+  locations: []
+
+  exclude_no_sponsorship: false
+  exclude_us_citizenship_required: false
+
+ai:
+  enabled: true
+  provider: github_models
+  model: openai/gpt-4.1-mini
+  minimum_rule_parser_confidence: 0.8
+  max_input_characters: 50000
+
+notifications:
+  max_jobs_per_message: 5
+  max_jobs_per_run: 30

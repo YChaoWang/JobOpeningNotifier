@@ -1,0 +1,24 @@
+[project]
+name = "job-opening-notifier"
+version = "2.0.0"
+description = "Multi-repository internship/job README monitor with Discord notifications"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31,<3",
+    "PyYAML>=6.0,<7",
+    "beautifulsoup4>=4.12,<5",
+    "openai>=1.40,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
