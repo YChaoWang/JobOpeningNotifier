@@ -329,8 +329,11 @@ class PipelineReliabilityTests(unittest.TestCase):
                 [sample_repo("summer-2027", "sndsh404/summer-2027-internships")],
                 ai_enabled=False,
             )
-            with patch.object(MonitorPipeline, "_parse_readme") as parse_mock:
-                summary = MonitorPipeline(config, state, github, discord).run()
+            pipeline = MonitorPipeline(config, state, github, discord)
+            with patch.object(
+                pipeline.repository_processor._parser, "parse"
+            ) as parse_mock:
+                summary = pipeline.run()
                 parse_mock.assert_not_called()
             self.assertEqual(summary.repositories_skipped_unchanged, 1)
             self.assertEqual(summary.jobs_notified, 1)
@@ -401,6 +404,7 @@ class PipelineReliabilityTests(unittest.TestCase):
                 max_jobs_per_run=30,
             )
             MonitorPipeline(config, state, github, discord).run()
+            # Same Added date → stable order A then B; mock accepts only first → A done, B pending.
             self.assertTrue(
                 state.is_seen(
                     make_job_id(
@@ -578,6 +582,24 @@ class UrlIdentityTests(unittest.TestCase):
             source_repo="owner/two",
         )
         self.assertNotEqual(a, b)
+
+    def test_order_jobs_oldest_first_by_date_and_reverse(self) -> None:
+        from internship_monitor.normalization import order_jobs_oldest_first
+
+        newer = _job("New", "SWE Intern", "https://ex.com/new")
+        newer.added = "2026-07-20"
+        older = _job("Old", "SWE Intern", "https://ex.com/old")
+        older.added = "2026-06-01"
+        ordered = order_jobs_oldest_first([newer, older])
+        self.assertEqual([job.company for job in ordered], ["Old", "New"])
+
+        # No dates: assume newest-first input → reverse.
+        a = _job("A", "SWE Intern", "https://ex.com/a")
+        b = _job("B", "SWE Intern", "https://ex.com/b")
+        self.assertEqual(
+            [job.company for job in order_jobs_oldest_first([a, b])],
+            ["B", "A"],
+        )
 
 
 if __name__ == "__main__":

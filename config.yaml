@@ -1,3 +1,7 @@
+# Active config used by check_jobs.py and GitHub Actions.
+# For a fully commented template, see config.example.yaml
+# (cp config.example.yaml config.yaml).
+
 repositories:
   - name: simplify-summer-2026
     repo: SimplifyJobs/Summer2026-Internships

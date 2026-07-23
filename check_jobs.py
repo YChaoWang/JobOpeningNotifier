@@ -48,11 +48,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--baseline-only",
-        action="store_true",
-        help=argparse.SUPPRESS,  # compatibility no-op; silent baseline is already default
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help=(
@@ -121,7 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     else:
         logger.warning(
-            "DISCORD_WEBHOOK_URL not set; matching jobs will remain pending/unnotified"
+            "DISCORD_WEBHOOK_URL not set; matching jobs will remain pending/unnotified. "
+            "Set the secret (Actions) or export the env var (local)."
         )
 
     github = GitHubClient(token=github_token)

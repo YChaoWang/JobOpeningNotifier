@@ -1,114 +1,118 @@
 # JobOpeningNotifier
 
-**Goal:** let anyone add the job/internship GitHub lists they care about, combine many sources automatically, and get Discord alerts — **without changing this upstream project or the source listing repos**.
+Watch public internship/job README lists on GitHub, merge many sources, and post matching roles to **your** Discord — without changing this upstream repo or the listing repos.
 
-How that works:
+## How it works for users
 
-1. **Fork** this repo (your copy is independent).  
-2. In **your** fork, edit `config.yaml` to add/remove sources.  
-3. Add **your** Discord webhook as a secret.  
-4. GitHub Actions in **your** fork watches those READMEs and notifies **your** Discord.  
+1. **Fork** this repository (your copy is independent).  
+2. Edit **`config.yaml`** in your fork (see [`config.example.yaml`](config.example.yaml)).  
+3. Add secret **`DISCORD_WEBHOOK_URL`**.  
+4. **Enable Actions** on the fork, then run **Internship Monitor**.  
 
-Your `config.yaml`, `data/` state, and webhook never write back to the original JobOpeningNotifier repo, and this bot only *reads* public listing READMEs (it does not modify SimplifyJobs, sndsh404, etc.).
+Actions in your fork only update *your* `data/` state. The bot **reads** listing READMEs; it never writes to SimplifyJobs, sndsh404, or other sources.
 
-**Starter sources** (change freely in your fork’s `config.yaml`):
+**Starter sources** (edit freely):
 
-- [SimplifyJobs/Summer2026-Internships](https://github.com/SimplifyJobs/Summer2026-Internships) (HTML tables)
-- [sndsh404/summer-2027-internships](https://github.com/sndsh404/summer-2027-internships) (Markdown tables)
-
-## Architecture
-
-```
-config.yaml
-  → fetch README + SHA
-  → skip unchanged repos (pending queue still drains)
-  → Markdown / HTML parsers (GitHub Models AI fallback if needed)
-  → normalize + filter + dedupe by application URL
-  → Discord notify (batched, retried)
-  → atomic state under data/
-```
+- [SimplifyJobs/Summer2026-Internships](https://github.com/SimplifyJobs/Summer2026-Internships) — HTML tables  
+- [sndsh404/summer-2027-internships](https://github.com/sndsh404/summer-2027-internships) — Markdown tables  
 
 ## Quick start
 
-1. **Fork** this repository (do not push personal config/state to upstream)  
-2. Create a Discord webhook (channel → Integrations → Webhooks)  
-3. In *your fork*: Settings → Secrets → Actions → add `DISCORD_WEBHOOK_URL`  
-4. Edit *your* `config.yaml` — add any public job-list repos you want  
-5. Enable Actions → run **Internship Monitor** once  
+1. Fork this repo  
+2. Discord → channel → **Integrations** → **Webhooks** → copy URL  
+3. Fork → **Settings → Secrets and variables → Actions** → `DISCORD_WEBHOOK_URL`  
+4. Edit `config.yaml` (repos + filters)  
+5. **Actions** tab → enable workflows if prompted → **Internship Monitor** → Run workflow  
 
-**First run is silent by default:** existing jobs are stored as seen, Discord is not flooded. Later README changes notify only new matches.
+**First run is silent** (baselines existing jobs, no Discord flood). Later runs only notify **new** matches.
 
-To send the **current matching set** (first run or later, even after a silent baseline):
+To post the current matching set anytime:
+
+- Actions input: `notify_existing = true`  
+- Or locally: `uv run python check_jobs.py --notify-existing`  
+
+Batch limits still apply; overflow goes to `data/pending_jobs.json`.
+
+## Configuration
+
+| Goal | Where |
+| --- | --- |
+| Add/remove job lists | `config.yaml` → `repositories` |
+| Keywords / locations / sponsorship | `config.yaml` → `filters` |
+| AI fallback | `config.yaml` → `ai` |
+| Discord batch size | `config.yaml` → `notifications` |
+| Discord webhook | Secret / env `DISCORD_WEBHOOK_URL` (never commit) |
+| Preview only | `uv run python check_jobs.py --dry-run` |
+| Dump current matches | `--notify-existing` |
 
 ```bash
-uv run python check_jobs.py --notify-existing
+cp config.example.yaml config.yaml   # optional; then edit
 ```
 
-Or set the Actions input `notify_existing` to `true`. Batch limits still apply; overflow goes to `pending_jobs.json`.
+## Pipeline
 
-## Behavior notes
+```text
+config.yaml
+  → MonitorPipeline (orchestrator)
+      → NotificationService (pending + Discord checkpoints)
+      → RepositoryProcessor (per source)
+          → ReadmeFetcher (GitHub)
+          → ParseCoordinator (Markdown / HTML / AI)
+          → filters + URL dedupe + oldest→newest order
+  → atomic state in data/
+```
 
-| Topic | Behavior |
-| --- | --- |
-| Pending queue | Jobs beyond `max_jobs_per_run` go to `data/pending_jobs.json` and are sent on later runs |
-| Partial Discord failure | Successfully accepted jobs are checkpointed; the rest stay pending (no duplicates) |
-| Dedup | Same normalized apply URL = same job across sources |
-| Fallback ID | Without a URL: company + role + location + source repo |
-| Filters | Case-insensitive on company/role/location; closed never notified; keyword rejects are not permanently forgotten |
-| SHA skip | Unchanged README skips parse; pending notifications still process |
-| Public forks | `DISCORD_WEBHOOK_URL` stays encrypted as an Actions secret; committed `data/*.json` is visible on public forks |
+SOLID-oriented layout: `ports.py` (interfaces), `parsing.py`, `notifying.py`, `processing.py`, thin `pipeline.py`.
 
-## Local commands
+## Local development
+
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+.
 
 ```bash
 uv sync --group dev
 uv run pytest -q
 
+cp .env.example .env   # optional; fill DISCORD_WEBHOOK_URL
 export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/...'
+
 uv run python check_jobs.py --test-discord
 uv run python check_jobs.py --dry-run
 uv run python check_jobs.py --notify-existing
 uv run python check_jobs.py
 ```
 
-## Configuration
-
-All normal customization is in **`config.yaml`**.  
-Start from the commented template: **`config.example.yaml`**.
-
-| What you want | Where |
-| --- | --- |
-| Add/remove internship lists | `repositories` in `config.yaml` |
-| Role keywords / locations / sponsorship filters | `filters` |
-| AI fallback on/off and model | `ai` |
-| How many Discord posts per run | `notifications` |
-| Discord webhook | GitHub secret / env `DISCORD_WEBHOOK_URL` (never in YAML) |
-| Preview without posting | CLI: `uv run python check_jobs.py --dry-run` |
-| Send / resend current matches | CLI/Actions: `--notify-existing` (works even after silent baseline) |
-
-```bash
-# After forking, optionally reset from the example:
-cp config.example.yaml config.yaml
-# then edit config.yaml
-```
-
-Example repository entry:
-
-```yaml
-repositories:
-  - name: my-list
-    repo: owner/repository
-    branch: main
-    readme_path: README.md
-    enabled: true
-```
 ## GitHub Actions
 
-- Schedule: every 30 minutes + `workflow_dispatch`
-- Inputs: `test_discord`, `notify_existing`
-- Permissions: `contents: write`, `models: read`
-- Secret: `DISCORD_WEBHOOK_URL`
-- Commits state with `chore: update internship monitor state` only when files change
+| Item | Value |
+| --- | --- |
+| Schedule | Every 30 minutes |
+| Manual | `workflow_dispatch` |
+| Inputs | `test_discord`, `notify_existing` |
+| Permissions | `contents: write`, `models: read` |
+| Secret | `DISCORD_WEBHOOK_URL` |
+| State commit | `chore: update internship monitor state` (only if files changed) |
+
+## Behavior notes
+
+| Topic | Behavior |
+| --- | --- |
+| Pending queue | Over `max_jobs_per_run` → `data/pending_jobs.json` |
+| Partial Discord failure | Accepted jobs checkpointed; rest stay pending |
+| Dedup | Same normalized apply URL = same job across sources |
+| Notify order | Oldest → newest (newest job is the latest Discord message) |
+| Fallback ID | No URL → company + role + location + source repo |
+| Filters | Case-insensitive; closed never notified |
+| Public forks | Webhook stays secret; committed `data/*.json` is public |
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| Workflow never runs | Enable Actions on the fork |
+| No Discord messages on first run | Expected (silent baseline). Use `notify_existing` |
+| No messages later | Set `DISCORD_WEBHOOK_URL`; check filters in `config.yaml` |
+| Pending file keeps growing | Webhook missing or Discord errors — fix secret, re-run |
+| Repo not found | Check `repo` / `branch` / `readme_path` |
 
 ## Security
 
@@ -118,4 +122,4 @@ repositories:
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — see also [CONTRIBUTING.md](CONTRIBUTING.md).
