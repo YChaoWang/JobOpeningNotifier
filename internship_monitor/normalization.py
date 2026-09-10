@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from internship_monitor.models import Job, ParserName, Sponsorship
@@ -122,6 +123,54 @@ def make_job_id(
 
 _AGE_RE = re.compile(r"^(\d+)\s*(d|mo|w|h|m|y)s?$", re.IGNORECASE)
 _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+_SLASH_DATE_RE = re.compile(r"^(\d{4})/(\d{2})/(\d{2})")
+
+
+def format_added_date(added: str | None, *, now: datetime | None = None) -> str | None:
+    """Format listing dates as ``YYYY/MM/DD`` for Discord display.
+
+    Absolute dates keep their calendar day. Relative ages (``3d``, ``1mo``)
+    are converted using ``now`` (UTC by default).
+    """
+    if not added:
+        return None
+    text = added.strip()
+    if not text or text in {"-", "—", "n/a", "N/A"}:
+        return None
+
+    iso = _ISO_DATE_RE.match(text)
+    if iso:
+        return f"{iso.group(1)}/{iso.group(2)}/{iso.group(3)}"
+
+    slash = _SLASH_DATE_RE.match(text)
+    if slash:
+        return f"{slash.group(1)}/{slash.group(2)}/{slash.group(3)}"
+
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%Y/%m/%d")
+        except ValueError:
+            continue
+
+    age = _AGE_RE.match(text.replace(" ", ""))
+    if age:
+        amount = int(age.group(1))
+        unit = age.group(2).lower()
+        deltas = {
+            "h": timedelta(hours=amount),
+            "d": timedelta(days=amount),
+            "w": timedelta(weeks=amount),
+            "mo": timedelta(days=30 * amount),
+            "m": timedelta(days=30 * amount),
+            "y": timedelta(days=365 * amount),
+        }
+        delta = deltas.get(unit)
+        if delta is None:
+            return None
+        ref = now or datetime.now(timezone.utc)
+        return (ref - delta).strftime("%Y/%m/%d")
+
+    return None
 
 
 def order_jobs_oldest_first(jobs: list[Job]) -> list[Job]:

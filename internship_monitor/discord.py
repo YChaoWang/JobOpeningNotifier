@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 import requests
 
 from internship_monitor.models import Job, Sponsorship
+from internship_monitor.normalization import format_added_date
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +193,11 @@ def build_job_embed(job: Job) -> dict[str, Any]:
             "inline": False,
         },
     ]
-    if job.added:
-        fields.append({"name": "Added", "value": _clip(job.added, 256), "inline": True})
+    added_display = format_added_date(job.added)
+    if added_display:
+        fields.append(
+            {"name": "Last update", "value": added_display, "inline": True}
+        )
     if job.sponsorship != Sponsorship.UNKNOWN:
         fields.append(
             {

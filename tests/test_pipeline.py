@@ -583,6 +583,23 @@ class UrlIdentityTests(unittest.TestCase):
         )
         self.assertNotEqual(a, b)
 
+    def test_format_added_date_yyyy_mm_dd(self) -> None:
+        from datetime import datetime, timezone
+
+        from internship_monitor.discord import build_job_embed
+        from internship_monitor.normalization import format_added_date
+
+        self.assertEqual(format_added_date("2026-07-20"), "2026/07/20")
+        self.assertEqual(format_added_date("2026/07/20"), "2026/07/20")
+        now = datetime(2026, 7, 23, tzinfo=timezone.utc)
+        self.assertEqual(format_added_date("3d", now=now), "2026/07/20")
+        self.assertIsNone(format_added_date("-"))
+
+        job = _job("Acme", "SWE Intern", "https://ex.com/1")
+        job.added = "2026-07-20"
+        fields = {f["name"]: f["value"] for f in build_job_embed(job)["fields"]}
+        self.assertEqual(fields["Last update"], "2026/07/20")
+
     def test_order_jobs_oldest_first_by_date_and_reverse(self) -> None:
         from internship_monitor.normalization import order_jobs_oldest_first
 
