@@ -383,7 +383,7 @@ class PipelineReliabilityTests(unittest.TestCase):
             content = """
 | Company | Role | Location | Apply | Added |
 | --- | --- | --- | --- | --- |
-| A | Software Engineer Intern | SF | [a](https://ex.com/a) | 2026-07-01 |
+| A | Software Engineer Intern | SF | [a](https://ex.com/a) | 2026-07-02 |
 | B | Software Engineer Intern | SF | [a](https://ex.com/b) | 2026-07-01 |
 """
             github = MagicMock()
@@ -404,7 +404,7 @@ class PipelineReliabilityTests(unittest.TestCase):
                 max_jobs_per_run=30,
             )
             MonitorPipeline(config, state, github, discord).run()
-            # Same Added date → stable order A then B; mock accepts only first → A done, B pending.
+            # Newest last-update (A) is sent first; mock accepts only first → A done, B pending.
             self.assertTrue(
                 state.is_seen(
                     make_job_id(
@@ -600,22 +600,41 @@ class UrlIdentityTests(unittest.TestCase):
         fields = {f["name"]: f["value"] for f in build_job_embed(job)["fields"]}
         self.assertEqual(fields["Last update"], "2026/07/20")
 
-    def test_order_jobs_oldest_first_by_date_and_reverse(self) -> None:
-        from internship_monitor.normalization import order_jobs_oldest_first
+    def test_order_jobs_by_last_update(self) -> None:
+        from datetime import datetime, timezone
+
+        from internship_monitor.normalization import (
+            order_jobs_by_last_update,
+            order_jobs_oldest_first,
+        )
 
         newer = _job("New", "SWE Intern", "https://ex.com/new")
         newer.added = "2026-07-20"
         older = _job("Old", "SWE Intern", "https://ex.com/old")
         older.added = "2026-06-01"
-        ordered = order_jobs_oldest_first([newer, older])
-        self.assertEqual([job.company for job in ordered], ["Old", "New"])
+        self.assertEqual(
+            [job.company for job in order_jobs_by_last_update([newer, older])],
+            ["New", "Old"],
+        )
+        self.assertEqual(
+            [job.company for job in order_jobs_oldest_first([newer, older])],
+            ["Old", "New"],
+        )
 
-        # No dates: assume newest-first input → reverse.
+        now = datetime(2026, 9, 13, tzinfo=timezone.utc)
+        fresh = _job("Fresh", "SWE Intern", "https://ex.com/fresh")
+        fresh.added = "0d"
+        week = _job("Week", "SWE Intern", "https://ex.com/week")
+        week.added = "7d"
+        ordered = order_jobs_by_last_update([week, fresh], newest_first=True, now=now)
+        self.assertEqual([job.company for job in ordered], ["Fresh", "Week"])
+
+        # No dates: keep input order at the end after dated jobs.
         a = _job("A", "SWE Intern", "https://ex.com/a")
         b = _job("B", "SWE Intern", "https://ex.com/b")
         self.assertEqual(
-            [job.company for job in order_jobs_oldest_first([a, b])],
-            ["B", "A"],
+            [job.company for job in order_jobs_by_last_update([a, b])],
+            ["A", "B"],
         )
 
 

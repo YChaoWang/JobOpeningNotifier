@@ -3,8 +3,8 @@
 # (cp config.example.yaml config.yaml).
 
 repositories:
-  - name: simplify-summer-2026
-    repo: SimplifyJobs/Summer2026-Internships
+  - name: simplify-summer-2027
+    repo: SimplifyJobs/Summer2027-Internships
     branch: dev
     readme_path: README.md
     enabled: true

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from internship_monitor.filtering import filter_jobs
 from internship_monitor.jobs import dedupe_jobs
 from internship_monitor.models import AppConfig, Job, RepositoryConfig
-from internship_monitor.normalization import order_jobs_oldest_first
+from internship_monitor.normalization import order_jobs_by_last_update
 from internship_monitor.notifying import NotificationService
 from internship_monitor.parsing import ParseCoordinator
 from internship_monitor.ports import ReadmeFetcher
@@ -210,11 +210,8 @@ class RepositoryProcessor:
                 len(new_jobs),
             )
 
-        ordered = order_jobs_oldest_first(new_jobs)
-        # Catch-up dumps should surface the newest listings first (e.g. "0d" roles).
-        # Normal runs stay oldest → newest so Discord's latest message is the newest job.
-        if self._notify_existing:
-            ordered = list(reversed(ordered))
+        # Newest last-update first so recently updated roles pop in Discord first.
+        ordered = order_jobs_by_last_update(new_jobs, newest_first=True)
         to_notify = ordered[:remaining_notify_slots]
         overflow = ordered[remaining_notify_slots:]
 

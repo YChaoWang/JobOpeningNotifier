@@ -1,60 +1,46 @@
 # JobOpeningNotifier
 
-Watch public internship/job lists on GitHub and post new matches to **your** Discord.
+[![Internship Monitor](https://github.com/YChaoWang/JobOpeningNotifier/actions/workflows/monitor.yml/badge.svg)](https://github.com/YChaoWang/JobOpeningNotifier/actions/workflows/monitor.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-It only **reads** listing READMEs. Your fork keeps its own config and webhook — nothing is written back to this repo or to the source lists.
+Watch public internship/job lists on GitHub and post new matches to **your** Discord. It only reads listing READMEs — nothing is written to this repo or the source lists.
 
-**Default sources**
+**Sources:** [SimplifyJobs/Summer2027-Internships](https://github.com/SimplifyJobs/Summer2027-Internships) · [sndsh404/summer-2027-internships](https://github.com/sndsh404/summer-2027-internships)
 
-- [SimplifyJobs/Summer2026-Internships](https://github.com/SimplifyJobs/Summer2026-Internships)
-- [sndsh404/summer-2027-internships](https://github.com/sndsh404/summer-2027-internships)
+## Setup
 
-## Setup (fork)
+1. Fork this repo
+2. Discord → channel → Integrations → Webhooks → copy URL
+3. Fork → **Settings → Secrets → Actions** → `DISCORD_WEBHOOK_URL`
+4. Edit [`config.yaml`](config.yaml) (see [`config.example.yaml`](config.example.yaml))
+5. **Actions** → enable workflows → run **Internship Monitor**
 
-1. **Fork** this repository
-2. Create a Discord webhook (channel → Integrations → Webhooks) and copy the URL
-3. In your fork: **Settings → Secrets and variables → Actions** → add `DISCORD_WEBHOOK_URL`
-4. Edit `config.yaml` (repos, keywords, locations — see [`config.example.yaml`](config.example.yaml))
-5. Open **Actions**, enable workflows if asked, then run **Internship Monitor**
+First run is **silent** (baselines existing jobs). Later runs notify only **new** matches. To post the current list once, run with `notify_existing = true`.
 
-The first run is **silent** (it remembers what’s already listed so you don’t get flooded). Later runs only notify **new** matches.
+## How it works
 
-To notify everything currently matching, run the workflow with `notify_existing = true`.
+```text
+config → fetch READMEs → parse tables → filter → skip seen → Discord
+```
 
-## Config
+Bot memory lives in local `data/` or, on Actions, the **`monitor-state`** branch (not `main`). Each fork has its own.
 
-| What | Where |
+| Goal | Action |
 | --- | --- |
-| Job lists | `config.yaml` → `repositories` |
-| Keywords / locations | `config.yaml` → `filters` |
-| Discord webhook | Actions secret `DISCORD_WEBHOOK_URL` |
+| Repost current matches | Run workflow with `notify_existing = true` |
+| Full reset | Delete the `monitor-state` branch, then run again |
 
-Never commit webhook URLs.
-
-## Local use
+## Local
 
 Needs [uv](https://docs.astral.sh/uv/) and Python 3.11+.
 
 ```bash
 uv sync --group dev
 export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/...'
-
-uv run python check_jobs.py --test-discord   # connectivity check
-uv run python check_jobs.py --dry-run        # preview, no Discord
-uv run python check_jobs.py --notify-existing
-uv run python check_jobs.py
-```
-
-```bash
+uv run python check_jobs.py --dry-run
 uv run pytest -q
 ```
-
-## Notes
-
-- Runs every **30 minutes** on Actions (or manually)
-- State lives in `data/` locally and in the Actions **cache** — not in git
-- If the cache is cleared, the next run baselines again (silent)
-- Closed roles are never notified
 
 ## License
 

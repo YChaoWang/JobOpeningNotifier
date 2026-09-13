@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from internship_monitor.models import AppConfig, Job
-from internship_monitor.normalization import order_jobs_oldest_first
+from internship_monitor.normalization import order_jobs_by_last_update
 from internship_monitor.notifying import NotificationService
 from internship_monitor.parsers.ai_fallback import AIFallbackParser
 from internship_monitor.parsers.html_table import HtmlTableParser
@@ -140,12 +140,15 @@ class MonitorPipeline:
         return summary
 
     def _drain_pending(self, summary: RunSummary, remaining_slots: int) -> int:
-        pending = order_jobs_oldest_first(self._take_pending(remaining_slots))
+        pending = order_jobs_by_last_update(
+            self._take_pending(remaining_slots), newest_first=True
+        )
         if not pending:
             return remaining_slots
 
         logger.info(
-            "Processing %d pending job(s) first (oldest → newest)", len(pending)
+            "Processing %d pending job(s) first (newest last-update first)",
+            len(pending),
         )
         notified, failed = self.notifications.deliver(pending)
         summary.jobs_notified += len(notified)

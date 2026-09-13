@@ -1,4 +1,4 @@
-# Runtime monitor state (generated locally / in CI). Do not commit.
+# Runtime monitor state (generated locally / in CI). Do not commit to `main`.
 
 This directory holds:
 
@@ -6,9 +6,9 @@ This directory holds:
 - `seen_jobs.json` — jobs already handled
 - `pending_jobs.json` — overflow / failed Discord deliveries
 
-These files are **gitignored**. They are not part of the open-source tree.
+These files are **gitignored** on `main`. They are not part of the open-source source tree.
 
 - **Local:** created automatically under `data/` when you run `check_jobs.py`
-- **GitHub Actions:** restored/saved via the Actions cache (not committed to git)
+- **GitHub Actions:** restored/saved on a dedicated **`monitor-state`** branch (not Actions cache)
 
-If cache is lost, the next run behaves like a fresh baseline (silent unless you pass `--notify-existing`).
+To fully reset Actions memory, delete the `monitor-state` branch, then run the workflow again (silent baseline unless you pass `--notify-existing`).

@@ -1,0 +1,43 @@
+name: New source repository
+description: Propose monitoring another GitHub internship/job README list
+title: "[source] "
+labels: ["enhancement"]
+body:
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      description: owner/name
+      placeholder: owner/internship-list
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      placeholder: main
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: README format
+      options:
+        - Markdown table
+        - HTML table
+        - Mixed / unclear
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample rows or README link
+      description: A few table rows or a permalink help decide if parsers need changes.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: Why this list is useful; any closed/sponsorship markers to know about.

@@ -126,29 +126,39 @@ _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 _SLASH_DATE_RE = re.compile(r"^(\d{4})/(\d{2})/(\d{2})")
 
 
-def format_added_date(added: str | None, *, now: datetime | None = None) -> str | None:
-    """Format listing dates as ``YYYY/MM/DD`` for Discord display.
-
-    Absolute dates keep their calendar day. Relative ages (``3d``, ``1mo``)
-    are converted using ``now`` (UTC by default).
-    """
+def parse_added_datetime(
+    added: str | None, *, now: datetime | None = None
+) -> datetime | None:
+    """Parse listing ``added`` / last-update text into a timezone-aware datetime."""
     if not added:
         return None
     text = added.strip()
     if not text or text in {"-", "—", "n/a", "N/A"}:
         return None
 
+    ref = now or datetime.now(timezone.utc)
+
     iso = _ISO_DATE_RE.match(text)
     if iso:
-        return f"{iso.group(1)}/{iso.group(2)}/{iso.group(3)}"
+        return datetime(
+            int(iso.group(1)),
+            int(iso.group(2)),
+            int(iso.group(3)),
+            tzinfo=timezone.utc,
+        )
 
     slash = _SLASH_DATE_RE.match(text)
     if slash:
-        return f"{slash.group(1)}/{slash.group(2)}/{slash.group(3)}"
+        return datetime(
+            int(slash.group(1)),
+            int(slash.group(2)),
+            int(slash.group(3)),
+            tzinfo=timezone.utc,
+        )
 
     for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%b %d, %Y", "%B %d, %Y"):
         try:
-            return datetime.strptime(text, fmt).strftime("%Y/%m/%d")
+            return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
 
@@ -167,68 +177,52 @@ def format_added_date(added: str | None, *, now: datetime | None = None) -> str 
         delta = deltas.get(unit)
         if delta is None:
             return None
-        ref = now or datetime.now(timezone.utc)
-        return (ref - delta).strftime("%Y/%m/%d")
+        return ref - delta
 
     return None
 
 
-def order_jobs_oldest_first(jobs: list[Job]) -> list[Job]:
-    """Order jobs oldest → newest so Discord's latest message is the newest job.
+def format_added_date(added: str | None, *, now: datetime | None = None) -> str | None:
+    """Format listing dates as ``YYYY/MM/DD`` for Discord display."""
+    parsed = parse_added_datetime(added, now=now)
+    if parsed is None:
+        return None
+    return parsed.strftime("%Y/%m/%d")
 
-    Listing READMEs usually put newest first. Prefer sorting by an ISO ``added``
-    date when every job has one; otherwise reverse input order.
+
+def order_jobs_by_last_update(
+    jobs: list[Job],
+    *,
+    newest_first: bool = True,
+    now: datetime | None = None,
+) -> list[Job]:
+    """Order jobs by listing last-update date (``added`` field).
+
+    Newest-first is used for Discord so recently updated roles pop first.
+    Jobs without a parseable date keep their relative input order at the end.
     """
     if len(jobs) <= 1:
         return list(jobs)
 
-    dated_keys: list[tuple[tuple[int, ...], Job]] = []
-    all_dated = True
-    for job in jobs:
-        key = _added_sort_key(job.added)
-        if key is None:
-            all_dated = False
-            break
-        dated_keys.append((key, job))
+    ref = now or datetime.now(timezone.utc)
+    dated: list[tuple[datetime, int, Job]] = []
+    undated: list[tuple[int, Job]] = []
+    for index, job in enumerate(jobs):
+        parsed = parse_added_datetime(job.added, now=ref)
+        if parsed is None:
+            undated.append((index, job))
+        else:
+            dated.append((parsed, index, job))
 
-    if all_dated:
-        dated_keys.sort(key=lambda item: item[0])
-        return [job for _, job in dated_keys]
-
-    # Newest-first table order → reverse so oldest is sent first.
-    return list(reversed(jobs))
+    dated.sort(key=lambda item: (item[0], item[1]), reverse=newest_first)
+    ordered = [job for _, _, job in dated]
+    ordered.extend(job for _, job in undated)
+    return ordered
 
 
-def _added_sort_key(added: str | None) -> tuple[int, ...] | None:
-    """Return a sort key where smaller means older (for ascending oldest-first sort)."""
-    if not added:
-        return None
-    text = added.strip()
-    if not text or text in {"-", "—", "n/a", "N/A"}:
-        return None
-
-    iso = _ISO_DATE_RE.match(text)
-    if iso:
-        year, month, day = (int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
-        return (0, year, month, day)
-
-    age = _AGE_RE.match(text.replace(" ", ""))
-    if age:
-        amount = int(age.group(1))
-        unit = age.group(2).lower()
-        multipliers = {
-            "h": 1,
-            "d": 24,
-            "w": 24 * 7,
-            "mo": 24 * 30,
-            "m": 24 * 30,
-            "y": 24 * 365,
-        }
-        hours = amount * multipliers.get(unit, 24)
-        # Larger age = older → smaller key via negation.
-        return (1, -hours)
-
-    return None
+def order_jobs_oldest_first(jobs: list[Job]) -> list[Job]:
+    """Order jobs oldest → newest by last update (compat helper)."""
+    return order_jobs_by_last_update(jobs, newest_first=False)
 
 
 def detect_sponsorship(*texts: str) -> Sponsorship:

@@ -6,9 +6,9 @@
 # ---------------------------------------------------------------------------
 repositories:
   # Unique name used in logs and data/repository_state.json
-  - name: simplify-summer-2026
+  - name: simplify-summer-2027
     # Required format: owner/repository
-    repo: SimplifyJobs/Summer2026-Internships
+    repo: SimplifyJobs/Summer2027-Internships
     # Branch that contains the README (often main or dev)
     branch: dev
     # Path inside the repo

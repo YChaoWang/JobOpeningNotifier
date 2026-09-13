@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup questions
+    url: https://github.com/YChaoWang/JobOpeningNotifier/blob/main/README.md
+    about: Check the README FAQ before opening an issue.

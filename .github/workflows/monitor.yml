@@ -13,7 +13,7 @@ on:
       notify_existing:
         description: "Notify all currently matching jobs (even if already baselined)"
         required: false
-        default: true
+        default: false
         type: boolean
 
 concurrency:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   models: read
 
 jobs:
@@ -45,18 +45,29 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
-      - name: Restore monitor state cache
+      - name: Restore monitor state branch
         if: ${{ inputs.test_discord != true }}
-        uses: actions/cache/restore@v4
+        uses: actions/checkout@v4
         with:
-          path: data
-          key: internship-monitor-state-${{ github.repository }}-${{ github.run_id }}
-          restore-keys: |
-            internship-monitor-state-${{ github.repository }}-
+          ref: monitor-state
+          path: .monitor-state
+        continue-on-error: true
 
-      - name: Ensure data directory exists
+      - name: Load monitor state into data/
         if: ${{ inputs.test_discord != true }}
-        run: mkdir -p data
+        run: |
+          set -euo pipefail
+          mkdir -p data
+          if [ -d .monitor-state ]; then
+            shopt -s nullglob
+            for f in .monitor-state/*.json .monitor-state/data/*.json; do
+              cp "$f" "data/$(basename "$f")"
+            done
+            echo "Restored from monitor-state:"
+            ls -la data || true
+          else
+            echo "No monitor-state branch yet; starting with empty data/"
+          fi
 
       - name: Discord connectivity test
         if: ${{ inputs.test_discord == true }}
@@ -76,9 +87,37 @@ jobs:
           fi
           uv run python check_jobs.py $EXTRA_ARGS
 
-      - name: Save monitor state cache
+      - name: Persist monitor state branch
         if: ${{ success() && inputs.test_discord != true }}
-        uses: actions/cache/save@v4
-        with:
-          path: data
-          key: internship-monitor-state-${{ github.repository }}-${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(data/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No data/*.json to persist"
+            exit 0
+          fi
+
+          STATE_DIR="$(mktemp -d)"
+          cp "${files[@]}" "$STATE_DIR/"
+          cat > "$STATE_DIR/README.md" <<'EOF'
+# Monitor state (auto-generated)
+
+Runtime JSON for JobOpeningNotifier Actions runs.
+
+- Kept on the `monitor-state` branch only (not `main`)
+- Safe to delete this branch for a full reset
+- Do not open PRs from this branch
+EOF
+
+          cd "$STATE_DIR"
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md *.json
+          git commit -m "chore: update monitor state"
+          git branch -M monitor-state
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push -f origin monitor-state

@@ -1,0 +1,47 @@
+name: Discord not posting
+description: Workflow runs but nothing (or errors) appear in Discord
+title: "[discord] "
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Quick checks
+      options:
+        - label: `DISCORD_WEBHOOK_URL` is set under Settings → Secrets and variables → Actions
+        - label: Actions are enabled on this fork
+        - label: I ran **Internship Monitor** (not only expecting the schedule)
+        - label: `--test-discord` / workflow input `test_discord` works (if tried)
+  - type: dropdown
+    id: run_type
+    attributes:
+      label: How did you run it?
+      options:
+        - Manual Run workflow
+        - Scheduled (cron)
+        - Local `check_jobs.py`
+    validations:
+      required: true
+  - type: dropdown
+    id: notify_existing
+    attributes:
+      label: Was notify_existing enabled?
+      options:
+        - "true"
+        - "false"
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      placeholder: Workflow succeeded but Discord stayed empty / webhook returned 404 / pending grew.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: Redact webhook tokens. Look for Discord / notified / pending / ERROR.
+      render: text

@@ -1,0 +1,50 @@
+name: Missing job notification
+description: A job appears on a source README but was not posted to Discord
+title: "[missing-job] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [README FAQ](https://github.com/YChaoWang/JobOpeningNotifier/blob/main/README.md#faq) first (filters, silent baseline, batch limit).
+  - type: input
+    id: company
+    attributes:
+      label: Company
+      placeholder: AnaVation
+    validations:
+      required: true
+  - type: input
+    id: role
+    attributes:
+      label: Role title
+      placeholder: Computer Science Intern - Summer 2027
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source repository
+      description: owner/repo from config.yaml
+      placeholder: SimplifyJobs/Summer2027-Internships
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What you expected vs what happened
+      placeholder: Seen on README after my baseline; filters include_keywords is empty; never appeared in Discord.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config (no secrets)
+      description: Paste your filters / repository entry from config.yaml. Do not include webhook URLs.
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Actions log snippet (optional)
+      description: Lines mentioning accepted/filtered/seen/notified help a lot.
+      render: text
