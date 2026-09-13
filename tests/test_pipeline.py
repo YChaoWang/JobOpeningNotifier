@@ -138,7 +138,9 @@ class StateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "out.json"
             atomic_write_json(target, {"ok": True})
-            self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"ok": True})
+            self.assertEqual(
+                json.loads(target.read_text(encoding="utf-8")), {"ok": True}
+            )
 
             store = StateStore(tmp)
             store.load()
@@ -150,8 +152,12 @@ class StateTests(unittest.TestCase):
 
             store2 = StateStore(tmp)
             store2.load()
-            self.assertEqual(store2.get_repository_state("demo").last_readme_sha, "sha-1")
-            self.assertTrue(store2.is_seen(_job("Acme", "SWE", "https://example.com/1").job_id))
+            self.assertEqual(
+                store2.get_repository_state("demo").last_readme_sha, "sha-1"
+            )
+            self.assertTrue(
+                store2.is_seen(_job("Acme", "SWE", "https://example.com/1").job_id)
+            )
 
 
 class DiscordTests(unittest.TestCase):
@@ -473,7 +479,9 @@ class PipelineReliabilityTests(unittest.TestCase):
 
             def fetch(owner, repo, path="README.md", branch=None):
                 if repo == "repo-a":
-                    return ReadmeDocument(content=content_a, sha="new-a", path="README.md")
+                    return ReadmeDocument(
+                        content=content_a, sha="new-a", path="README.md"
+                    )
                 return ReadmeDocument(content=content_b, sha="new-b", path="README.md")
 
             github = MagicMock()
@@ -511,7 +519,9 @@ class PipelineReliabilityTests(unittest.TestCase):
                 [sample_repo("repo-a", "owner/repo-a")], ai_enabled=True
             )
             MonitorPipeline(config, state, github, discord, ai_parser=ai).run()
-            self.assertEqual(state.get_repository_state("repo-a").last_readme_sha, "old")
+            self.assertEqual(
+                state.get_repository_state("repo-a").last_readme_sha, "old"
+            )
             discord.send_jobs.assert_not_called()
 
     def test_dry_run_does_not_mutate_or_notify(self) -> None:

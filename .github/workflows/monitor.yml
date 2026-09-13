@@ -102,15 +102,15 @@ jobs:
 
           STATE_DIR="$(mktemp -d)"
           cp "${files[@]}" "$STATE_DIR/"
-          cat > "$STATE_DIR/README.md" <<'EOF'
-# Monitor state (auto-generated)
-
-Runtime JSON for JobOpeningNotifier Actions runs.
-
-- Kept on the `monitor-state` branch only (not `main`)
-- Safe to delete this branch for a full reset
-- Do not open PRs from this branch
-EOF
+          printf '%s\n' \
+            '# Monitor state (auto-generated)' \
+            '' \
+            'Runtime JSON for JobOpeningNotifier Actions runs.' \
+            '' \
+            '- Kept on the monitor-state branch only (not main)' \
+            '- Safe to delete this branch for a full reset' \
+            '- Do not open PRs from this branch' \
+            > "$STATE_DIR/README.md"
 
           cd "$STATE_DIR"
           git init
