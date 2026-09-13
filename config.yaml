@@ -16,14 +16,8 @@ repositories:
     enabled: true
 
 filters:
-  include_keywords:
-    - software engineer
-    - software engineering
-    - machine learning
-    - artificial intelligence
-    - computer vision
-    - data scientist
-    - data engineering
+  # Empty = accept all roles (only exclude_keywords / closed / location rules apply).
+  include_keywords: []
 
   exclude_keywords:
     - phd

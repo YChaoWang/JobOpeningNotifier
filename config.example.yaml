@@ -33,15 +33,13 @@ repositories:
 # filters — case-insensitive; applied to company + role + location text
 # ---------------------------------------------------------------------------
 filters:
-  # If empty: accept all roles. If non-empty: at least one keyword must match.
-  include_keywords:
-    - software engineer
-    - software engineering
-    - machine learning
-    - artificial intelligence
-    - computer vision
-    - data scientist
-    - data engineering
+  # Empty (default): accept all roles. Non-empty: at least one keyword must match.
+  # Example narrow filter:
+  # include_keywords:
+  #   - software engineer
+  #   - computer science
+  #   - machine learning
+  include_keywords: []
 
   # Always wins over include matches
   exclude_keywords:
