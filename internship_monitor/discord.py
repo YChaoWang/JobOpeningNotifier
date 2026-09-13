@@ -222,8 +222,10 @@ def build_job_embed(job: Job) -> dict[str, Any]:
             }
         )
 
+    company = (job.company or "").strip() or "Unknown"
+    role = (job.role or "").strip() or "Internship"
     embed: dict[str, Any] = {
-        "title": "New Internship",
+        "title": _clip(f"{company} — {role}", 256),
         "color": 0x2ECC71,
         "fields": fields,
     }
