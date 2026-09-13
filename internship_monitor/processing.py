@@ -211,6 +211,10 @@ class RepositoryProcessor:
             )
 
         ordered = order_jobs_oldest_first(new_jobs)
+        # Catch-up dumps should surface the newest listings first (e.g. "0d" roles).
+        # Normal runs stay oldest → newest so Discord's latest message is the newest job.
+        if self._notify_existing:
+            ordered = list(reversed(ordered))
         to_notify = ordered[:remaining_notify_slots]
         overflow = ordered[remaining_notify_slots:]
 
