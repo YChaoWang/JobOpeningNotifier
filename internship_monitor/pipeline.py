@@ -1,10 +1,11 @@
-"""Monitor orchestration: pending drain + per-repository processing."""
+"""Monitor orchestration: collect all sources, then notify by last update."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
+from internship_monitor.jobs import dedupe_jobs
 from internship_monitor.models import AppConfig, Job
 from internship_monitor.normalization import order_jobs_by_last_update
 from internship_monitor.notifying import NotificationService
@@ -73,16 +74,13 @@ class MonitorPipeline:
             state,
             github,
             self.parse_coordinator,
-            self.notifications,
             notify_existing=notify_existing,
             dry_run=dry_run,
         )
 
     def run(self) -> RunSummary:
         summary = RunSummary(dry_run=self.dry_run)
-        remaining_slots = self.config.notifications.max_jobs_per_run
-
-        remaining_slots = self._drain_pending(summary, remaining_slots)
+        collected: list[Job] = []
 
         for repository in self.config.repositories:
             if not repository.enabled:
@@ -90,9 +88,7 @@ class MonitorPipeline:
                 continue
             summary.repositories_checked += 1
             try:
-                repo_stats = self.repository_processor.process(
-                    repository, remaining_notify_slots=remaining_slots
-                )
+                result = self.repository_processor.collect(repository)
             except Exception as exc:  # noqa: BLE001 - isolate per-repo failures
                 summary.repositories_failed += 1
                 message = f"{exc.__class__.__name__}: {exc}"
@@ -105,17 +101,16 @@ class MonitorPipeline:
                     self.state.save()
                 continue
 
+            repo_stats = result.stats
             summary.repositories_changed += repo_stats.changed
             summary.repositories_skipped_unchanged += repo_stats.unchanged
             summary.jobs_parsed += repo_stats.parsed
             summary.jobs_rejected += repo_stats.rejected
             summary.jobs_filtered += repo_stats.filtered
             summary.jobs_already_seen += repo_stats.already_seen
-            summary.jobs_notified += repo_stats.notified
-            summary.jobs_queued_pending += repo_stats.queued
-            summary.jobs_would_notify += repo_stats.would_notify
-            summary.jobs_would_remain_pending += repo_stats.would_remain_pending
-            remaining_slots = max(0, remaining_slots - repo_stats.notified)
+            collected.extend(result.new_jobs)
+
+        self._notify_merged(summary, collected)
 
         if not self.dry_run:
             self.state.save()
@@ -139,29 +134,40 @@ class MonitorPipeline:
         )
         return summary
 
-    def _drain_pending(self, summary: RunSummary, remaining_slots: int) -> int:
-        pending = order_jobs_by_last_update(
-            self._take_pending(remaining_slots), newest_first=False
-        )
-        if not pending:
-            return remaining_slots
+    def _notify_merged(self, summary: RunSummary, collected: list[Job]) -> None:
+        """Merge pending + new jobs, order by last update across all sources, notify."""
+        merged = dedupe_jobs(list(self.state.pending_jobs) + collected)
+        if not merged:
+            if not self.dry_run:
+                self.state.replace_pending([])
+            return
+
+        ordered = order_jobs_by_last_update(merged, newest_first=False)
+        slots = self.config.notifications.max_jobs_per_run
+        to_notify = ordered[:slots]
+        overflow = ordered[slots:]
 
         logger.info(
-            "Processing %d pending job(s) first (oldest last-update first)",
-            len(pending),
+            "Merged %d job(s) across sources/pending; notifying %d "
+            "(oldest last-update first), %d remain pending",
+            len(ordered),
+            len(to_notify),
+            len(overflow),
         )
-        notified, failed = self.notifications.deliver(pending)
+
+        notified: list[Job] = []
+        failed: list[Job] = []
+        if to_notify:
+            notified, failed = self.notifications.deliver(to_notify)
+
         summary.jobs_notified += len(notified)
-        remaining_slots -= len(notified)
-        if failed:
-            self.state.enqueue_pending(failed)
-            summary.jobs_queued_pending += len(failed)
+        remainder = failed + overflow
+        summary.jobs_queued_pending += len(remainder)
+
         if self.dry_run:
             summary.jobs_would_notify += len(notified)
-            summary.jobs_would_remain_pending += len(failed)
-        return remaining_slots
-
-    def _take_pending(self, limit: int) -> list[Job]:
-        if self.dry_run:
-            return list(self.state.pending_jobs[: max(0, limit)])
-        return self.state.pop_pending(limit)
+            summary.jobs_would_remain_pending += len(remainder)
+        else:
+            self.state.replace_pending(
+                order_jobs_by_last_update(remainder, newest_first=False)
+            )

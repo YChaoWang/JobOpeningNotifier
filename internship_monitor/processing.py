@@ -1,16 +1,14 @@
-"""Per-repository processing (fetch → parse → filter → notify/queue)."""
+"""Per-repository collection (fetch → parse → filter → candidates)."""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from internship_monitor.filtering import filter_jobs
 from internship_monitor.jobs import dedupe_jobs
 from internship_monitor.models import AppConfig, Job, RepositoryConfig
-from internship_monitor.normalization import order_jobs_by_last_update
-from internship_monitor.notifying import NotificationService
 from internship_monitor.parsing import ParseCoordinator
 from internship_monitor.ports import ReadmeFetcher
 from internship_monitor.state import StateStore
@@ -46,8 +44,14 @@ class RepositoryRunStats:
         }
 
 
+@dataclass(slots=True)
+class RepositoryCollectResult:
+    stats: RepositoryRunStats = field(default_factory=RepositoryRunStats)
+    new_jobs: list[Job] = field(default_factory=list)
+
+
 class RepositoryProcessor:
-    """Processes one configured source repository."""
+    """Collects matching jobs from one configured source repository."""
 
     def __init__(
         self,
@@ -55,7 +59,6 @@ class RepositoryProcessor:
         state: StateStore,
         github: ReadmeFetcher,
         parser: ParseCoordinator,
-        notifications: NotificationService,
         *,
         notify_existing: bool = False,
         dry_run: bool = False,
@@ -64,13 +67,10 @@ class RepositoryProcessor:
         self._state = state
         self._github = github
         self._parser = parser
-        self._notifications = notifications
         self._notify_existing = notify_existing
         self._dry_run = dry_run
 
-    def process(
-        self, repository: RepositoryConfig, *, remaining_notify_slots: int
-    ) -> RepositoryRunStats:
+    def collect(self, repository: RepositoryConfig) -> RepositoryCollectResult:
         stats = RepositoryRunStats()
         logger.info(
             "[%s] Checking %s@%s", repository.name, repository.repo, repository.branch
@@ -98,7 +98,7 @@ class RepositoryProcessor:
             stats.unchanged = 1
             if not self._dry_run:
                 repo_state.last_error = None
-            return stats
+            return RepositoryCollectResult(stats=stats)
 
         stats.changed = 1
         logger.info(
@@ -133,7 +133,7 @@ class RepositoryProcessor:
                 "[%s] Skipping state SHA update so a future run can retry parsing",
                 repository.name,
             )
-            return stats
+            return RepositoryCollectResult(stats=stats)
 
         unique_jobs = dedupe_jobs(parse_result.jobs)
         accepted, rejected = filter_jobs(unique_jobs, self._config.filters)
@@ -146,19 +146,21 @@ class RepositoryProcessor:
         )
 
         is_first_run = not repo_state.initialized
+        new_jobs: list[Job] = []
         if is_first_run and not self._notify_existing:
             self._baseline(repository.name, unique_jobs)
         else:
-            self._notify_new_matches(
+            new_jobs = self._select_candidates(
                 repository.name,
                 accepted,
-                rejected,
-                remaining_notify_slots=remaining_notify_slots,
                 stats=stats,
                 is_first_run=is_first_run,
             )
 
         if not self._dry_run:
+            for job, reason in rejected:
+                if reason == "closed":
+                    self._state.mark_seen(job, notified=False)
             repo_state.last_readme_sha = readme.sha
             repo_state.last_success_at = datetime.now(timezone.utc).isoformat()
             repo_state.last_parser = parse_result.parser.value
@@ -166,7 +168,8 @@ class RepositoryProcessor:
             repo_state.last_error = None
             repo_state.initialized = True
             self._state.save()
-        return stats
+
+        return RepositoryCollectResult(stats=stats, new_jobs=new_jobs)
 
     def _baseline(self, repo_name: str, unique_jobs: list[Job]) -> None:
         logger.info(
@@ -177,19 +180,17 @@ class RepositoryProcessor:
         if not self._dry_run:
             self._state.mark_seen_many(unique_jobs, notified=False)
 
-    def _notify_new_matches(
+    def _select_candidates(
         self,
         repo_name: str,
         accepted: list[Job],
-        rejected: list[tuple[Job, str]],
         *,
-        remaining_notify_slots: int,
         stats: RepositoryRunStats,
         is_first_run: bool,
-    ) -> None:
+    ) -> list[Job]:
         if is_first_run and self._notify_existing:
             logger.info(
-                "[%s] First run with --notify-existing: notifying matching jobs",
+                "[%s] First run with --notify-existing: collecting matching jobs",
                 repo_name,
             )
 
@@ -200,46 +201,13 @@ class RepositoryProcessor:
                 continue
             new_jobs.append(job)
 
-        pending_ids = {job.job_id for job in self._state.pending_jobs}
-        new_jobs = [job for job in new_jobs if job.job_id not in pending_ids]
-
         if self._notify_existing and not is_first_run:
             logger.info(
-                "[%s] --notify-existing: %d matching job(s) eligible to (re)notify",
+                "[%s] --notify-existing: %d matching job(s) eligible",
                 repo_name,
                 len(new_jobs),
             )
+        elif new_jobs:
+            logger.info("[%s] %d new matching job(s)", repo_name, len(new_jobs))
 
-        # Oldest last-update first so Discord scrolls past → latest.
-        ordered = order_jobs_by_last_update(new_jobs, newest_first=False)
-        to_notify = ordered[:remaining_notify_slots]
-        overflow = ordered[remaining_notify_slots:]
-
-        if to_notify:
-            notified, failed = self._notifications.deliver(to_notify)
-            stats.notified = len(notified)
-            if self._dry_run:
-                stats.would_notify = len(notified)
-            if failed:
-                if not self._dry_run:
-                    self._state.enqueue_pending(failed)
-                stats.queued += len(failed)
-                if self._dry_run:
-                    stats.would_remain_pending += len(failed)
-
-        if overflow:
-            if not self._dry_run:
-                self._state.enqueue_pending(overflow)
-            stats.queued += len(overflow)
-            if self._dry_run:
-                stats.would_remain_pending += len(overflow)
-            logger.info(
-                "[%s] Queued %d job(s) for a future run (max_jobs_per_run reached)",
-                repo_name,
-                len(overflow),
-            )
-
-        if not self._dry_run:
-            for job, reason in rejected:
-                if reason == "closed":
-                    self._state.mark_seen(job, notified=False)
+        return new_jobs

@@ -102,6 +102,17 @@ class StateStore:
             self.pending_jobs.append(job)
             existing_ids.add(job.job_id)
 
+    def replace_pending(self, jobs: list[Job]) -> None:
+        """Replace the pending queue (allows already-seen jobs for catch-up dumps)."""
+        seen_ids: set[str] = set()
+        unique: list[Job] = []
+        for job in jobs:
+            if job.job_id in seen_ids:
+                continue
+            seen_ids.add(job.job_id)
+            unique.append(job)
+        self.pending_jobs = unique
+
     def pop_pending(self, limit: int) -> list[Job]:
         if limit <= 0:
             return []

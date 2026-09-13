@@ -499,6 +499,57 @@ class PipelineReliabilityTests(unittest.TestCase):
             summary = MonitorPipeline(config, state, github, discord).run()
             self.assertEqual(summary.jobs_notified, 1)
 
+    def test_notify_order_merges_sources_by_last_update(self) -> None:
+        """Jobs from different repos are staggered by last-update, not by source order."""
+        content_a = """
+| Company | Role | Location | Apply | Added |
+| --- | --- | --- | --- | --- |
+| FromA | Software Engineer Intern | SF | [a](https://ex.com/a) | 2026-08-01 |
+"""
+        content_b = """
+| Company | Role | Location | Apply | Added |
+| --- | --- | --- | --- | --- |
+| FromB | Software Engineer Intern | SF | [a](https://ex.com/b) | 2026-07-01 |
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            state = StateStore(tmp)
+            state.load()
+            for name, sha in (("repo-a", "old-a"), ("repo-b", "old-b")):
+                rs = state.get_repository_state(name)
+                rs.initialized = True
+                rs.last_readme_sha = sha
+
+            def fetch(owner, repo, path="README.md", branch=None):
+                if repo == "repo-a":
+                    return ReadmeDocument(
+                        content=content_a, sha="new-a", path="README.md"
+                    )
+                return ReadmeDocument(content=content_b, sha="new-b", path="README.md")
+
+            sent_batches: list[list[Job]] = []
+
+            def send(jobs: list[Job]) -> list[Job]:
+                sent_batches.append(list(jobs))
+                return jobs
+
+            github = MagicMock()
+            github.fetch_readme.side_effect = fetch
+            discord = MagicMock()
+            discord.send_jobs.side_effect = send
+            config = sample_config(
+                [
+                    sample_repo("repo-a", "owner/repo-a"),
+                    sample_repo("repo-b", "owner/repo-b"),
+                ],
+                include_keywords=["software engineer"],
+                ai_enabled=False,
+                max_jobs_per_run=2,
+            )
+            summary = MonitorPipeline(config, state, github, discord).run()
+            self.assertEqual(summary.jobs_notified, 2)
+            flat = [job for batch in sent_batches for job in batch]
+            self.assertEqual([job.company for job in flat], ["FromB", "FromA"])
+
     def test_failed_parse_does_not_persist_sha(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             state = StateStore(tmp)
