@@ -210,8 +210,8 @@ class RepositoryProcessor:
                 len(new_jobs),
             )
 
-        # Newest last-update first so recently updated roles pop in Discord first.
-        ordered = order_jobs_by_last_update(new_jobs, newest_first=True)
+        # Oldest last-update first so Discord scrolls past → latest.
+        ordered = order_jobs_by_last_update(new_jobs, newest_first=False)
         to_notify = ordered[:remaining_notify_slots]
         overflow = ordered[remaining_notify_slots:]
 

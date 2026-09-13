@@ -141,13 +141,13 @@ class MonitorPipeline:
 
     def _drain_pending(self, summary: RunSummary, remaining_slots: int) -> int:
         pending = order_jobs_by_last_update(
-            self._take_pending(remaining_slots), newest_first=True
+            self._take_pending(remaining_slots), newest_first=False
         )
         if not pending:
             return remaining_slots
 
         logger.info(
-            "Processing %d pending job(s) first (newest last-update first)",
+            "Processing %d pending job(s) first (oldest last-update first)",
             len(pending),
         )
         notified, failed = self.notifications.deliver(pending)

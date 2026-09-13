@@ -404,12 +404,12 @@ class PipelineReliabilityTests(unittest.TestCase):
                 max_jobs_per_run=30,
             )
             MonitorPipeline(config, state, github, discord).run()
-            # Newest last-update (A) is sent first; mock accepts only first → A done, B pending.
+            # Oldest last-update (B) is sent first; mock accepts only first → B done, A pending.
             self.assertTrue(
                 state.is_seen(
                     make_job_id(
-                        apply_url="https://ex.com/a",
-                        company="A",
+                        apply_url="https://ex.com/b",
+                        company="B",
                         role="Software Engineer Intern",
                         location="SF",
                         source_repo="owner/repo-a",
@@ -417,7 +417,7 @@ class PipelineReliabilityTests(unittest.TestCase):
                 )
             )
             self.assertEqual(len(state.pending_jobs), 1)
-            self.assertEqual(state.pending_jobs[0].company, "B")
+            self.assertEqual(state.pending_jobs[0].company, "A")
 
     def test_one_repo_failure_does_not_stop_other(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -614,7 +614,7 @@ class UrlIdentityTests(unittest.TestCase):
         older.added = "2026-06-01"
         self.assertEqual(
             [job.company for job in order_jobs_by_last_update([newer, older])],
-            ["New", "Old"],
+            ["Old", "New"],
         )
         self.assertEqual(
             [job.company for job in order_jobs_oldest_first([newer, older])],
@@ -626,8 +626,10 @@ class UrlIdentityTests(unittest.TestCase):
         fresh.added = "0d"
         week = _job("Week", "SWE Intern", "https://ex.com/week")
         week.added = "7d"
-        ordered = order_jobs_by_last_update([week, fresh], newest_first=True, now=now)
-        self.assertEqual([job.company for job in ordered], ["Fresh", "Week"])
+        ordered = order_jobs_by_last_update([week, fresh], newest_first=False, now=now)
+        self.assertEqual([job.company for job in ordered], ["Week", "Fresh"])
+        newest = order_jobs_by_last_update([week, fresh], newest_first=True, now=now)
+        self.assertEqual([job.company for job in newest], ["Fresh", "Week"])
 
         # No dates: keep input order at the end after dated jobs.
         a = _job("A", "SWE Intern", "https://ex.com/a")

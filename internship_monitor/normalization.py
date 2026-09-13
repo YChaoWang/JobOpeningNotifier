@@ -193,12 +193,12 @@ def format_added_date(added: str | None, *, now: datetime | None = None) -> str 
 def order_jobs_by_last_update(
     jobs: list[Job],
     *,
-    newest_first: bool = True,
+    newest_first: bool = False,
     now: datetime | None = None,
 ) -> list[Job]:
     """Order jobs by listing last-update date (``added`` field).
 
-    Newest-first is used for Discord so recently updated roles pop first.
+    Oldest-first is the default so Discord messages scroll past → latest.
     Jobs without a parseable date keep their relative input order at the end.
     """
     if len(jobs) <= 1:
