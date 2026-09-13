@@ -37,4 +37,4 @@ ai:
 
 notifications:
   max_jobs_per_message: 5
-  max_jobs_per_run: 30
+  max_jobs_per_run: 1000
