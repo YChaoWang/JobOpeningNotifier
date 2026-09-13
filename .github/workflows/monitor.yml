@@ -29,10 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
@@ -45,25 +45,19 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
-      - name: Restore monitor state branch
-        if: ${{ inputs.test_discord != true }}
-        uses: actions/checkout@v4
-        with:
-          ref: monitor-state
-          path: .monitor-state
-        continue-on-error: true
-
-      - name: Load monitor state into data/
+      - name: Restore monitor state
         if: ${{ inputs.test_discord != true }}
         run: |
           set -euo pipefail
           mkdir -p data
-          if [ -d .monitor-state ]; then
-            shopt -s nullglob
-            for f in .monitor-state/*.json .monitor-state/data/*.json; do
-              cp "$f" "data/$(basename "$f")"
+          if git ls-remote --exit-code --heads origin monitor-state >/dev/null 2>&1; then
+            git fetch --depth=1 origin monitor-state
+            for name in seen_jobs.json pending_jobs.json repository_state.json; do
+              if git cat-file -e "origin/monitor-state:${name}" 2>/dev/null; then
+                git show "origin/monitor-state:${name}" > "data/${name}"
+                echo "Restored data/${name}"
+              fi
             done
-            echo "Restored from monitor-state:"
             ls -la data || true
           else
             echo "No monitor-state branch yet; starting with empty data/"
