@@ -9,11 +9,16 @@ from datetime import datetime, timezone
 from internship_monitor.filtering import filter_jobs
 from internship_monitor.jobs import dedupe_jobs
 from internship_monitor.models import AppConfig, Job, RepositoryConfig
+from internship_monitor.parsers.html_table import HTML_TABLE_COVERAGE_VERSION
 from internship_monitor.parsing import ParseCoordinator
 from internship_monitor.ports import ReadmeFetcher
 from internship_monitor.state import StateStore
 
 logger = logging.getLogger(__name__)
+
+# Current parser coverage marker. Bump when parse surface expands in a way that
+# can suddenly surface many previously invisible jobs (silent baseline required).
+CURRENT_PARSER_COVERAGE = HTML_TABLE_COVERAGE_VERSION
 
 
 @dataclass(slots=True)
@@ -83,12 +88,17 @@ class RepositoryProcessor:
             branch=repository.branch,
         )
         repo_state = self._state.get_repository_state(repository.name)
+        needs_coverage_migration = (
+            repo_state.initialized
+            and repo_state.parser_coverage != CURRENT_PARSER_COVERAGE
+        )
 
         if (
             repo_state.initialized
             and repo_state.last_readme_sha
             and repo_state.last_readme_sha == readme.sha
             and not self._notify_existing
+            and not needs_coverage_migration
         ):
             logger.info(
                 "[%s] README unchanged (sha=%s); skipping parse",
@@ -102,9 +112,10 @@ class RepositoryProcessor:
 
         stats.changed = 1
         logger.info(
-            "[%s] README changed or first run (sha=%s)",
+            "[%s] README changed or first run (sha=%s)%s",
             repository.name,
             readme.sha[:12],
+            " [parser-coverage migration]" if needs_coverage_migration else "",
         )
 
         parse_result, rejected_count, parse_ok = self._parser.parse(
@@ -147,8 +158,13 @@ class RepositoryProcessor:
 
         is_first_run = not repo_state.initialized
         new_jobs: list[Job] = []
+
         if is_first_run and not self._notify_existing:
             self._baseline(repository.name, unique_jobs)
+        elif needs_coverage_migration and not self._notify_existing:
+            new_jobs = self._migrate_parser_coverage(
+                repository.name, unique_jobs, accepted, stats=stats
+            )
         else:
             new_jobs = self._select_candidates(
                 repository.name,
@@ -156,6 +172,13 @@ class RepositoryProcessor:
                 stats=stats,
                 is_first_run=is_first_run,
             )
+
+        logger.info(
+            "[%s] new_jobs=%d (notify_existing=%s)",
+            repository.name,
+            len(new_jobs),
+            self._notify_existing,
+        )
 
         if not self._dry_run:
             for job, reason in rejected:
@@ -167,6 +190,7 @@ class RepositoryProcessor:
             repo_state.last_parser_confidence = parse_result.confidence
             repo_state.last_error = None
             repo_state.initialized = True
+            repo_state.parser_coverage = CURRENT_PARSER_COVERAGE
             self._state.save()
 
         return RepositoryCollectResult(stats=stats, new_jobs=new_jobs)
@@ -179,6 +203,37 @@ class RepositoryProcessor:
         )
         if not self._dry_run:
             self._state.mark_seen_many(unique_jobs, notified=False)
+
+    def _migrate_parser_coverage(
+        self,
+        repo_name: str,
+        unique_jobs: list[Job],
+        accepted: list[Job],
+        *,
+        stats: RepositoryRunStats,
+    ) -> list[Job]:
+        """Silent baseline for jobs newly visible after a parser-coverage upgrade."""
+        del accepted  # migration baselines all unique jobs, not only accepted
+        if self._dry_run:
+            unseen = [job for job in unique_jobs if not self._state.is_seen(job.job_id)]
+            logger.info(
+                "[%s] Dry-run parser-coverage migration: would baseline %d unseen job(s)",
+                repo_name,
+                len(unseen),
+            )
+            stats.already_seen += len(unique_jobs) - len(unseen)
+            return []
+
+        added = self._state.mark_unseen_baselined(unique_jobs)
+        stats.already_seen += len(unique_jobs) - added
+        logger.info(
+            "[%s] Parser-coverage migration (%s): baselined %d previously unseen "
+            "job(s) without notifying (preserved existing notified=true)",
+            repo_name,
+            CURRENT_PARSER_COVERAGE,
+            added,
+        )
+        return []
 
     def _select_candidates(
         self,

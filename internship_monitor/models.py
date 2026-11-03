@@ -142,6 +142,8 @@ class RepositoryState:
     last_parser_confidence: float | None = None
     last_error: str | None = None
     initialized: bool = False
+    # Tracks HTML/parser coverage upgrades (e.g. single-table → all-tables).
+    parser_coverage: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -151,6 +153,7 @@ class RepositoryState:
             "last_parser_confidence": self.last_parser_confidence,
             "last_error": self.last_error,
             "initialized": self.initialized,
+            "parser_coverage": self.parser_coverage,
         }
 
     @classmethod
@@ -168,6 +171,7 @@ class RepositoryState:
             initialized=bool(
                 data.get("initialized", bool(data.get("last_readme_sha") or data.get("last_sha")))
             ),
+            parser_coverage=data.get("parser_coverage") or None,
         )
 
 

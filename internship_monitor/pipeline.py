@@ -142,14 +142,14 @@ class MonitorPipeline:
                 self.state.replace_pending([])
             return
 
-        ordered = order_jobs_by_last_update(merged, newest_first=False)
+        ordered = order_jobs_by_last_update(merged, newest_first=True)
         slots = self.config.notifications.max_jobs_per_run
         to_notify = ordered[:slots]
         overflow = ordered[slots:]
 
         logger.info(
             "Merged %d job(s) across sources/pending; notifying %d "
-            "(oldest last-update first), %d remain pending",
+            "(newest last-update first), %d remain pending",
             len(ordered),
             len(to_notify),
             len(overflow),
@@ -169,5 +169,5 @@ class MonitorPipeline:
             summary.jobs_would_remain_pending += len(remainder)
         else:
             self.state.replace_pending(
-                order_jobs_by_last_update(remainder, newest_first=False)
+                order_jobs_by_last_update(remainder, newest_first=True)
             )

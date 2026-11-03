@@ -15,8 +15,22 @@ from internship_monitor.models import Job, ParserName, Sponsorship
 from internship_monitor.normalization import make_job_id, normalize_url
 from internship_monitor.parsers.ai_fallback import AIFallbackParser
 from internship_monitor.pipeline import MonitorPipeline
+from internship_monitor.processing import CURRENT_PARSER_COVERAGE
 from internship_monitor.state import StateStore, atomic_write_json, migrate_legacy_state
 from tests.conftest import read_fixture, sample_config, sample_repo
+
+
+def _init_repo_state(
+    state: StateStore,
+    name: str,
+    *,
+    sha: str = "old",
+    coverage: str | None = CURRENT_PARSER_COVERAGE,
+) -> None:
+    rs = state.get_repository_state(name)
+    rs.initialized = True
+    rs.last_readme_sha = sha
+    rs.parser_coverage = coverage
 
 
 def _job(
@@ -320,8 +334,7 @@ class PipelineReliabilityTests(unittest.TestCase):
             state.load()
             pending = _job("PendingCo", "Software Engineer Intern", "https://ex.com/p")
             state.enqueue_pending([pending])
-            state.get_repository_state("summer-2027").initialized = True
-            state.get_repository_state("summer-2027").last_readme_sha = "same-sha"
+            _init_repo_state(state, "summer-2027", sha="same-sha")
 
             github = MagicMock()
             github.fetch_readme.return_value = ReadmeDocument(
@@ -349,9 +362,7 @@ class PipelineReliabilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             state = StateStore(tmp)
             state.load()
-            rs = state.get_repository_state("repo-a")
-            rs.initialized = True
-            rs.last_readme_sha = "old"
+            _init_repo_state(state, "repo-a", sha="old")
 
             rows = [
                 f"| Co{i} | Software Engineer Intern | SF | [a](https://ex.com/{i}) | 2026-07-01 |"
@@ -382,9 +393,7 @@ class PipelineReliabilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             state = StateStore(tmp)
             state.load()
-            rs = state.get_repository_state("repo-a")
-            rs.initialized = True
-            rs.last_readme_sha = "old"
+            _init_repo_state(state, "repo-a", sha="old")
 
             content = """
 | Company | Role | Location | Apply | Added |
@@ -410,12 +419,12 @@ class PipelineReliabilityTests(unittest.TestCase):
                 max_jobs_per_run=30,
             )
             MonitorPipeline(config, state, github, discord).run()
-            # Oldest last-update (B) is sent first; mock accepts only first → B done, A pending.
+            # Newest last-update (A) is sent first; mock accepts only first → A done, B pending.
             self.assertTrue(
                 state.is_seen(
                     make_job_id(
-                        apply_url="https://ex.com/b",
-                        company="B",
+                        apply_url="https://ex.com/a",
+                        company="A",
                         role="Software Engineer Intern",
                         location="SF",
                         source_repo="owner/repo-a",
@@ -423,7 +432,7 @@ class PipelineReliabilityTests(unittest.TestCase):
                 )
             )
             self.assertEqual(len(state.pending_jobs), 1)
-            self.assertEqual(state.pending_jobs[0].company, "A")
+            self.assertEqual(state.pending_jobs[0].company, "B")
 
     def test_one_repo_failure_does_not_stop_other(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -473,9 +482,7 @@ class PipelineReliabilityTests(unittest.TestCase):
             state = StateStore(tmp)
             state.load()
             for name, sha in (("repo-a", "old-a"), ("repo-b", "old-b")):
-                rs = state.get_repository_state(name)
-                rs.initialized = True
-                rs.last_readme_sha = sha
+                _init_repo_state(state, name, sha=sha)
 
             def fetch(owner, repo, path="README.md", branch=None):
                 if repo == "repo-a":
@@ -515,9 +522,7 @@ class PipelineReliabilityTests(unittest.TestCase):
             state = StateStore(tmp)
             state.load()
             for name, sha in (("repo-a", "old-a"), ("repo-b", "old-b")):
-                rs = state.get_repository_state(name)
-                rs.initialized = True
-                rs.last_readme_sha = sha
+                _init_repo_state(state, name, sha=sha)
 
             def fetch(owner, repo, path="README.md", branch=None):
                 if repo == "repo-a":
@@ -548,15 +553,133 @@ class PipelineReliabilityTests(unittest.TestCase):
             summary = MonitorPipeline(config, state, github, discord).run()
             self.assertEqual(summary.jobs_notified, 2)
             flat = [job for batch in sent_batches for job in batch]
-            self.assertEqual([job.company for job in flat], ["FromB", "FromA"])
+            self.assertEqual([job.company for job in flat], ["FromA", "FromB"])
+
+    def test_parser_coverage_migration_baselines_without_flood(self) -> None:
+        """Upgrading HTML coverage silently baselines newly visible jobs."""
+        from internship_monitor.processing import CURRENT_PARSER_COVERAGE
+
+        content_new_view = """
+        <table>
+        <thead><tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr></thead>
+        <tbody>
+        <tr><td>OldCo</td><td>Software Engineer Intern</td><td>SF</td>
+        <td><a href="https://ex.com/old">Apply</a></td><td>5d</td></tr>
+        </tbody></table>
+        <table>
+        <thead><tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr></thead>
+        <tbody>
+        <tr><td>NewTableCo</td><td>Software Engineer Intern</td><td>SF</td>
+        <td><a href="https://ex.com/new">Apply</a></td><td>0d</td></tr>
+        </tbody></table>
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            state = StateStore(tmp)
+            state.load()
+            _init_repo_state(
+                state, "repo-a", sha="same-sha", coverage=None
+            )  # pre-migration
+
+            old_job = _job("OldCo", "Software Engineer Intern", "https://ex.com/old")
+            state.mark_seen(old_job, notified=True)
+
+            github = MagicMock()
+            github.fetch_readme.return_value = ReadmeDocument(
+                content=content_new_view, sha="same-sha", path="README.md"
+            )
+            discord = MagicMock()
+            discord.send_jobs.side_effect = lambda jobs: jobs
+            config = sample_config(
+                [sample_repo("repo-a", "owner/repo-a")],
+                include_keywords=["software engineer"],
+                ai_enabled=False,
+            )
+
+            summary = MonitorPipeline(config, state, github, discord).run()
+            self.assertEqual(summary.jobs_notified, 0)
+            self.assertTrue(state.is_seen(old_job.job_id))
+            self.assertTrue(state.seen_jobs[old_job.job_id].get("notified"))
+
+            new_id = make_job_id(
+                apply_url="https://ex.com/new",
+                company="NewTableCo",
+                role="Software Engineer Intern",
+                location="SF",
+                source_repo="owner/repo-a",
+            )
+            self.assertTrue(state.is_seen(new_id))
+            self.assertFalse(state.seen_jobs[new_id].get("notified"))
+            self.assertEqual(
+                state.get_repository_state("repo-a").parser_coverage,
+                CURRENT_PARSER_COVERAGE,
+            )
+
+            # After migration, a genuinely new job notifies normally even if SHA changes.
+            content_after = (
+                content_new_view
+                + """
+            <table>
+            <thead><tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr></thead>
+            <tbody>
+            <tr><td>BrandNewCo</td><td>Software Engineer Intern</td><td>SF</td>
+            <td><a href="https://ex.com/brand">Apply</a></td><td>0d</td></tr>
+            </tbody></table>
+            """
+            )
+            github.fetch_readme.return_value = ReadmeDocument(
+                content=content_after, sha="new-sha", path="README.md"
+            )
+            summary2 = MonitorPipeline(config, state, github, discord).run()
+            self.assertEqual(summary2.jobs_notified, 1)
+            self.assertEqual(discord.send_jobs.call_args[0][0][0].company, "BrandNewCo")
+            # Previously notified OldCo stays notified=true
+            self.assertTrue(state.seen_jobs[old_job.job_id].get("notified"))
+
+    def test_parser_coverage_migration_honors_notify_existing(self) -> None:
+        from internship_monitor.processing import CURRENT_PARSER_COVERAGE
+
+        content = """
+        <table>
+        <thead><tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr></thead>
+        <tbody>
+        <tr><td>SeenCo</td><td>Software Engineer Intern</td><td>SF</td>
+        <td><a href="https://ex.com/seen">Apply</a></td><td>1d</td></tr>
+        <tr><td>ExtraCo</td><td>Software Engineer Intern</td><td>SF</td>
+        <td><a href="https://ex.com/extra">Apply</a></td><td>0d</td></tr>
+        </tbody></table>
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            state = StateStore(tmp)
+            state.load()
+            _init_repo_state(state, "repo-a", sha="sha", coverage=None)
+            seen = _job("SeenCo", "Software Engineer Intern", "https://ex.com/seen")
+            state.mark_seen(seen, notified=True)
+
+            github = MagicMock()
+            github.fetch_readme.return_value = ReadmeDocument(
+                content=content, sha="sha", path="README.md"
+            )
+            discord = MagicMock()
+            discord.send_jobs.side_effect = lambda jobs: jobs
+            config = sample_config(
+                [sample_repo("repo-a", "owner/repo-a")],
+                include_keywords=["software engineer"],
+                ai_enabled=False,
+            )
+            summary = MonitorPipeline(
+                config, state, github, discord, notify_existing=True
+            ).run()
+            self.assertEqual(summary.jobs_notified, 2)
+            self.assertEqual(
+                state.get_repository_state("repo-a").parser_coverage,
+                CURRENT_PARSER_COVERAGE,
+            )
 
     def test_failed_parse_does_not_persist_sha(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             state = StateStore(tmp)
             state.load()
-            rs = state.get_repository_state("repo-a")
-            rs.initialized = True
-            rs.last_readme_sha = "old"
+            _init_repo_state(state, "repo-a", sha="old")
             github = MagicMock()
             github.fetch_readme.return_value = ReadmeDocument(
                 content="# Notes\ninternship software engineer apply company location listings",

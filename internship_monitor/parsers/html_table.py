@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from internship_monitor.jobs import dedupe_jobs
 from internship_monitor.models import ParseResult, ParserName, RepositoryConfig
 from internship_monitor.parsers import (
     compute_confidence,
@@ -12,9 +15,15 @@ from internship_monitor.parsers import (
     rows_to_jobs,
 )
 
+logger = logging.getLogger(__name__)
+
+# Bumped when HTML parsing coverage expands (e.g. single → all compatible tables).
+HTML_TABLE_COVERAGE_VERSION = "html-all-tables-v1"
+
 
 class HtmlTableParser:
     name = ParserName.HTML_TABLE.value
+    coverage_version = HTML_TABLE_COVERAGE_VERSION
 
     def parse(self, content: str, repository: RepositoryConfig) -> ParseResult:
         if "<table" not in content.lower():
@@ -25,63 +34,97 @@ class HtmlTableParser:
         if not tables:
             return empty_result(ParserName.HTML_TABLE, "No HTML table detected")
 
-        best: ParseResult | None = None
         base_url = f"https://github.com/{repository.repo}/blob/{repository.branch}/"
+        all_jobs = []
+        warnings: list[str] = []
+        total_rejected = 0
+        total_rows = 0
+        compatible = 0
+        skipped_unmapped = 0
 
-        for table in tables:
-            headers, rows = _table_to_matrix(table)
+        for index, table in enumerate(tables, start=1):
+            try:
+                headers, rows = _table_to_matrix(table)
+            except Exception as exc:  # noqa: BLE001 - one bad table must not fail parse
+                warnings.append(f"Skipped malformed HTML table #{index}: {exc}")
+                continue
+
             if not headers:
                 continue
 
             columns = map_columns(headers)
             if not columns.required_mapped:
-                candidate = ParseResult(
-                    jobs=[],
-                    parser=ParserName.HTML_TABLE,
-                    confidence=0.15,
-                    warnings=["HTML table found but required columns missing"],
-                    table_detected=True,
-                    columns_mapped=False,
-                )
-            else:
-                jobs, rejected, warnings = rows_to_jobs(
-                    rows,
-                    columns,
-                    source_repo=repository.repo,
-                    source_url=repository.source_url,
-                    parser=ParserName.HTML_TABLE,
-                    base_url=base_url,
-                )
-                jobs_with_urls = sum(1 for job in jobs if job.apply_url)
-                confidence = compute_confidence(
-                    table_detected=True,
-                    columns_mapped=True,
-                    row_count=len(rows),
-                    valid_jobs=len(jobs),
-                    jobs_with_urls=jobs_with_urls,
-                )
-                if rejected:
-                    warnings.append(f"Rejected {rejected} malformed/unusable rows")
-                candidate = ParseResult(
-                    jobs=jobs,
-                    parser=ParserName.HTML_TABLE,
-                    confidence=confidence,
-                    warnings=warnings,
-                    table_detected=True,
-                    columns_mapped=True,
-                )
+                skipped_unmapped += 1
+                continue
 
-            if best is None or candidate.confidence > best.confidence or (
-                candidate.confidence == best.confidence
-                and len(candidate.jobs) > len(best.jobs)
-            ):
-                best = candidate
-
-        if best is None:
-            return empty_result(
-                ParserName.HTML_TABLE, "HTML tables present but none usable"
+            compatible += 1
+            total_rows += len(rows)
+            jobs, rejected, table_warnings = rows_to_jobs(
+                rows,
+                columns,
+                source_repo=repository.repo,
+                source_url=repository.source_url,
+                parser=ParserName.HTML_TABLE,
+                base_url=base_url,
             )
-        return best
+            all_jobs.extend(jobs)
+            total_rejected += rejected
+            warnings.extend(table_warnings)
+
+        raw_count = len(all_jobs)
+        unique_jobs = dedupe_jobs(all_jobs)
+
+        logger.info(
+            "[%s] HTML tables=%d compatible=%d raw_jobs=%d unique_jobs=%d",
+            repository.name,
+            len(tables),
+            compatible,
+            raw_count,
+            len(unique_jobs),
+        )
+
+        if compatible == 0:
+            message = "HTML tables present but none with required job columns"
+            if skipped_unmapped:
+                message = (
+                    f"{message} (skipped {skipped_unmapped} unrelated/unmapped table(s))"
+                )
+            return ParseResult(
+                jobs=[],
+                parser=ParserName.HTML_TABLE,
+                confidence=0.15,
+                warnings=[message, *warnings],
+                table_detected=True,
+                columns_mapped=False,
+            )
+
+        jobs_with_urls = sum(1 for job in unique_jobs if job.apply_url)
+        confidence = compute_confidence(
+            table_detected=True,
+            columns_mapped=True,
+            row_count=total_rows,
+            valid_jobs=len(unique_jobs),
+            jobs_with_urls=jobs_with_urls,
+        )
+        if total_rejected:
+            warnings.append(f"Rejected {total_rejected} malformed/unusable rows")
+        if skipped_unmapped:
+            warnings.append(
+                f"Ignored {skipped_unmapped} unrelated/unmapped HTML table(s)"
+            )
+        if raw_count != len(unique_jobs):
+            warnings.append(
+                f"Deduped {raw_count - len(unique_jobs)} duplicate job(s) across tables"
+            )
+
+        return ParseResult(
+            jobs=unique_jobs,
+            parser=ParserName.HTML_TABLE,
+            confidence=confidence,
+            warnings=warnings,
+            table_detected=True,
+            columns_mapped=True,
+        )
 
 
 def _table_to_matrix(table: Tag) -> tuple[list[str], list[list[str]]]:

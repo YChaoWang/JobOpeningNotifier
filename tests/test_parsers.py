@@ -151,6 +151,57 @@ class HtmlParserTests(unittest.TestCase):
         relative = next(job for job in result.jobs if job.company == "ML Labs")
         self.assertTrue((relative.apply_url or "").startswith("https://github.com/"))
 
+    def test_html_merges_multiple_compatible_tables(self) -> None:
+        result = self.parser.parse(read_fixture("html_multi_table.md"), self.repo)
+        self.assertTrue(result.table_detected)
+        self.assertTrue(result.columns_mapped)
+        companies = {job.company for job in result.jobs}
+        self.assertEqual(companies, {"Alpha", "Beta", "Gamma", "Delta"})
+
+        zero_day = [job for job in result.jobs if job.added == "0d"]
+        self.assertEqual({job.company for job in zero_day}, {"Alpha", "Delta"})
+
+        # Duplicate Alpha apply URL across tables collapses to one job_id.
+        alpha_jobs = [job for job in result.jobs if job.company == "Alpha"]
+        self.assertEqual(len(alpha_jobs), 1)
+
+        warning_text = " ".join(result.warnings).lower()
+        self.assertIn("ignored", warning_text)
+        self.assertIn("deduped", warning_text)
+
+    def test_html_section_split_into_two_tables(self) -> None:
+        result = self.parser.parse(read_fixture("html_multi_table.md"), self.repo)
+        # Data/AI section is split: Gamma in first table, Delta in second.
+        self.assertTrue(any(job.company == "Gamma" for job in result.jobs))
+        self.assertTrue(any(job.company == "Delta" for job in result.jobs))
+
+    def test_html_ignores_unrelated_and_malformed_tables(self) -> None:
+        content = """
+        <table><tr><td>no headers</td></tr></table>
+        <table>
+          <thead><tr><th>Name</th><th>Score</th></tr></thead>
+          <tbody><tr><td>Alice</td><td>1</td></tr></tbody>
+        </table>
+        <table>
+          <thead>
+            <tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>OnlyCo</td>
+              <td>Software Engineer Intern</td>
+              <td>SF</td>
+              <td><a href="https://careers.only.example/jobs/1">Apply</a></td>
+              <td>0d</td>
+            </tr>
+          </tbody>
+        </table>
+        """
+        result = self.parser.parse(content, self.repo)
+        self.assertEqual(len(result.jobs), 1)
+        self.assertEqual(result.jobs[0].company, "OnlyCo")
+        self.assertTrue(result.columns_mapped)
+
 
 class UrlAndFilterTests(unittest.TestCase):
     def test_tracking_param_normalization(self) -> None:

@@ -94,6 +94,20 @@ class StateStore:
         for job in jobs:
             self.mark_seen(job, notified=notified)
 
+    def mark_unseen_baselined(self, jobs: list[Job]) -> int:
+        """Mark only previously unseen jobs as seen(notified=False).
+
+        Existing records (including notified=true) are left unchanged.
+        Returns how many new baseline entries were added.
+        """
+        added = 0
+        for job in jobs:
+            if job.job_id in self.seen_jobs:
+                continue
+            self.mark_seen(job, notified=False)
+            added += 1
+        return added
+
     def enqueue_pending(self, jobs: list[Job]) -> None:
         existing_ids = {job.job_id for job in self.pending_jobs}
         for job in jobs:
