@@ -63,6 +63,16 @@ jobs:
             echo "No monitor-state branch yet; starting with empty data/"
           fi
 
+      - name: Check Discord webhook secret
+        if: ${{ inputs.test_discord != true }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::error::Add secret DISCORD_WEBHOOK_URL (Settings → Secrets → Actions), then re-run."
+            exit 1
+          fi
+
       - name: Discord connectivity test
         if: ${{ inputs.test_discord == true }}
         env:

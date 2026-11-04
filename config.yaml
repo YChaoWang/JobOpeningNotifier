@@ -1,6 +1,6 @@
-# Active config used by check_jobs.py and GitHub Actions.
-# For a fully commented template, see config.example.yaml
-# (cp config.example.yaml config.yaml).
+# Works out of the box after you add DISCORD_WEBHOOK_URL — no edits required.
+# Change this only if you want custom sources/filters.
+# Fully commented reference: config.example.yaml
 
 repositories:
   - name: simplify-summer-2027

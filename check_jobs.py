@@ -110,15 +110,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         logger.info("Dry-run mode: no Discord requests and no state writes")
     elif webhook:
-        discord = DiscordNotifier(
-            webhook,
-            max_jobs_per_message=config.notifications.max_jobs_per_message,
-        )
+        try:
+            discord = DiscordNotifier(
+                webhook,
+                max_jobs_per_message=config.notifications.max_jobs_per_message,
+            )
+        except ValueError as exc:
+            logger.error("%s", exc)
+            return 2
     else:
-        logger.warning(
-            "DISCORD_WEBHOOK_URL not set; matching jobs will remain pending/unnotified. "
-            "Set the secret (Actions) or export the env var (local)."
+        logger.error(
+            "DISCORD_WEBHOOK_URL is missing.\n"
+            "  1) Discord → channel → Integrations → Webhooks → copy URL\n"
+            "  2) Repo → Settings → Secrets and variables → Actions\n"
+            "  3) New secret named DISCORD_WEBHOOK_URL (exact name) → paste URL\n"
+            "  4) Re-run Internship Monitor"
         )
+        return 2
 
     github = GitHubClient(token=github_token)
     pipeline = MonitorPipeline(
