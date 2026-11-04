@@ -2,19 +2,16 @@ name: GitHub Clone Count Update Everyday
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 */24 * * *"
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@v2
+      
       - name: gh login
         run: echo "${{ secrets.SECRET_TOKEN }}" | gh auth login --with-token
 
@@ -76,11 +73,11 @@ jobs:
             echo '
             ```
 
- **HTML**
+            **HTML**
             ```html' >> CLONE.md
             echo "<a href='$repo'><img alt='GitHub Clones' src='$shields$url&logo=github'></a>" >> CLONE.md
             echo '```' >> CLONE.md
-
+            
             git add CLONE.md
             git config --global user.name "GitHub Action"
             git config --global user.email "action@github.com"
