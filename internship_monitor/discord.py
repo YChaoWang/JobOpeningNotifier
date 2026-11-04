@@ -184,14 +184,14 @@ class DiscordNotifier:
 
 
 def build_job_embed(job: Job) -> dict[str, Any]:
-    fields = [
-        {"name": "Company", "value": _clip(job.company or "Unknown", 256), "inline": True},
-        {"name": "Role", "value": _clip(job.role or "Unknown", 256), "inline": True},
-        {
-            "name": "Location",
-            "value": _clip(job.location or "Not specified", 1024),
-            "inline": False,
-        },
+    """Build a compact Discord embed: title = company + role; title URL = apply."""
+    company = (job.company or "").strip() or "Unknown"
+    role = (job.role or "").strip() or "Internship"
+    location = (job.location or "").strip() or "Not specified"
+
+    # Company/role live in the title (clickable via embed url). Avoid duplicating them.
+    fields: list[dict[str, Any]] = [
+        {"name": "Location", "value": _clip(location, 1024), "inline": True},
     ]
     added_display = format_added_date(job.added)
     if added_display:
@@ -206,24 +206,17 @@ def build_job_embed(job: Job) -> dict[str, Any]:
                 "inline": True,
             }
         )
-    fields.append(
-        {
-            "name": "Source",
-            "value": _clip(job.source_repo or "unknown", 256),
-            "inline": True,
-        }
-    )
     if job.apply_url:
+        # Markdown link reads cleaner than a raw URL dump.
+        apply_url = _clip(job.apply_url, 1000)
         fields.append(
             {
                 "name": "Apply",
-                "value": _clip(job.apply_url, 1024),
+                "value": f"[Open application]({apply_url})",
                 "inline": False,
             }
         )
 
-    company = (job.company or "").strip() or "Unknown"
-    role = (job.role or "").strip() or "Internship"
     embed: dict[str, Any] = {
         "title": _clip(f"{company} — {role}", 256),
         "color": 0x2ECC71,
@@ -231,8 +224,8 @@ def build_job_embed(job: Job) -> dict[str, Any]:
     }
     if job.apply_url:
         embed["url"] = job.apply_url
-    if job.source_url:
-        embed["footer"] = {"text": _clip(job.source_url, 2048)}
+    if job.source_repo:
+        embed["footer"] = {"text": _clip(f"Source: {job.source_repo}", 2048)}
     return embed
 
 

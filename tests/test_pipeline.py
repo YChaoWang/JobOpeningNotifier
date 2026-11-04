@@ -781,8 +781,16 @@ class UrlIdentityTests(unittest.TestCase):
 
         job = _job("Acme", "SWE Intern", "https://ex.com/1")
         job.added = "2026-07-20"
-        fields = {f["name"]: f["value"] for f in build_job_embed(job)["fields"]}
+        embed = build_job_embed(job)
+        fields = {f["name"]: f["value"] for f in embed["fields"]}
+        self.assertEqual(embed["title"], "Acme — SWE Intern")
+        self.assertEqual(embed["url"], "https://ex.com/1")
         self.assertEqual(fields["Last update"], "2026/07/20")
+        self.assertEqual(fields["Location"], "SF")
+        self.assertEqual(fields["Apply"], "[Open application](https://ex.com/1)")
+        self.assertNotIn("Company", fields)
+        self.assertNotIn("Role", fields)
+        self.assertEqual(embed["footer"]["text"], "Source: owner/repo")
 
     def test_order_jobs_by_last_update(self) -> None:
         from datetime import datetime, timezone
