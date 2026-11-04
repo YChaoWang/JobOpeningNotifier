@@ -3,6 +3,7 @@
 [![Internship Monitor](https://github.com/YChaoWang/JobOpeningNotifier/actions/workflows/monitor.yml/badge.svg)](https://github.com/YChaoWang/JobOpeningNotifier/actions/workflows/monitor.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+![Git Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clones&query=$.count&url=https%3A%2F%2Fraw.githubusercontent.com%2FYChaoWang%2FJobOpeningNotifier%2Fmain%2Fpath%2Fto%2Fclone.json)
 
 Watch public internship/job lists on GitHub and post new matches to **your** Discord. It only reads listing READMEs — nothing is written to this repo or the source lists.
 
