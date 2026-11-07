@@ -1,0 +1,21 @@
+{
+  "_schema_version": 2,
+  "simplify-summer-2027": {
+    "initialized": true,
+    "last_error": null,
+    "last_parser": "html_table",
+    "last_parser_confidence": 1.0,
+    "last_readme_sha": "856594a81548d7666c68407750f5631f2b06b060",
+    "last_success_at": "2026-11-07T16:48:46.667081+00:00",
+    "parser_coverage": "html-all-tables-v1"
+  },
+  "summer-2027": {
+    "initialized": true,
+    "last_error": null,
+    "last_parser": "markdown_table",
+    "last_parser_confidence": 1.0,
+    "last_readme_sha": "a67d206f954184c9ce63056a52d7892e93c88af2",
+    "last_success_at": "2026-11-04T06:03:44.007692+00:00",
+    "parser_coverage": "html-all-tables-v1"
+  }
+}
